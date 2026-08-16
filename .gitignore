@@ -1,0 +1,22 @@
+# Environment variables and API keys
+.env
+.env.*
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Uploaded temporary files
+temp/
+*.pdf
+
+# Local runtime data
+indexed_docs.json
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

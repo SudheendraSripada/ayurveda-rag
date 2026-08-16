@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sushruta Ayurveda RAG - Remedy Finder</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+        <div class="brand">
+            <i class="fa-solid fa-leaf brand-logo"></i>
+            <span class="brand-name">Sushruta <span class="accent">RAG</span></span>
+        </div>
+        <nav class="nav-links">
+            <button id="btn-user-view" class="nav-btn active"><i class="fa-solid fa-house-medical"></i> Remedy Finder</button>
+            <button id="btn-admin-view" class="nav-btn"><i class="fa-solid fa-user-shield"></i> Admin Panel</button>
+        </nav>
+    </header>
+
+    <main class="main-container">
+        <!-- User View: Remedy Finder -->
+        <section id="user-view" class="view-section">
+            <div class="hero-section">
+                <h1>Ayurvedic Remedy Finder</h1>
+                <p class="subtitle">Query symptoms and receive authentic, detailed home remedies compiled strictly from Ayurvedic scriptures.</p>
+            </div>
+
+            <!-- Search Area -->
+            <div class="search-card">
+                <form id="search-form" class="search-form">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="search-input" placeholder="Describe your health issue or symptom (e.g. chronic sinusitis, indigestion, cough, joint pain)..." required autocomplete="off">
+                    </div>
+                    <button type="submit" class="search-submit-btn">
+                        <span>Search Remedies</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </form>
+                <div class="search-options">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="checkbox-rerank">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label"><i class="fa-solid fa-bars-staggered"></i> Enable Pinecone Reranking (Higher Accuracy)</span>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="remedy-loading" class="loading-container hidden">
+                <div class="leaf-loader">
+                    <i class="fa-solid fa-leaf pulsing-leaf"></i>
+                    <div class="spinner"></div>
+                </div>
+                <h3>Consulting scriptures...</h3>
+                <p id="loading-status">Sage Dhanvantari is extracting relevant remedies from reference books.</p>
+            </div>
+
+            <!-- Error Indicator -->
+            <div id="remedy-error" class="error-container hidden">
+                <i class="fa-solid fa-circle-exclamation error-icon"></i>
+                <h3 id="error-title">Consultation Failed</h3>
+                <p id="error-message">Unable to query backend. Make sure keys are configured in the Admin Panel.</p>
+            </div>
+
+            <!-- Result Remedy Card -->
+            <div id="remedy-result-card" class="remedy-result-card hidden">
+                <div class="result-header">
+                    <div class="result-badge"><i class="fa-solid fa-prescription"></i> Ayurvedic Remedy</div>
+                    <button id="btn-print-remedy" class="action-icon-btn" title="Print Remedy"><i class="fa-solid fa-print"></i></button>
+                </div>
+                
+                <div id="remedy-content-markdown" class="remedy-markdown">
+                    <!-- Markdown will render here -->
+                </div>
+
+                <!-- Accordion Sources -->
+                <div class="sources-section">
+                    <div class="sources-toggle" id="sources-header">
+                        <h4><i class="fa-solid fa-book-open-reader"></i> Reference Sources & Page Excerpts (<span id="source-count">0</span>)</h4>
+                        <i class="fa-solid fa-chevron-down arrow-icon"></i>
+                    </div>
+                    <div class="sources-content hidden" id="sources-list-container">
+                        <!-- Source cards will render here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin View (Credentials, Upload, Stats) -->
+        <section id="admin-view" class="view-section hidden">
+            <!-- Admin PIN Lock Drawer -->
+            <div id="admin-lock-card" class="admin-lock-card">
+                <i class="fa-solid fa-lock lock-icon"></i>
+                <h2>Admin Console Locked</h2>
+                <p>Please enter the administrator passcode to access configurations and uploads.</p>
+                <div class="passcode-input-wrapper">
+                    <input type="password" id="admin-passcode" placeholder="Enter PIN code...">
+                    <button id="btn-unlock-admin" class="btn btn-primary">Unlock</button>
+                </div>
+                <p class="hint-text"><i class="fa-solid fa-info-circle"></i> Hint: Default passcode is <code>admin123</code></p>
+            </div>
+
+            <!-- Locked Admin Content -->
+            <div id="admin-content" class="admin-content hidden">
+                <div class="admin-grid">
+                    
+                    <!-- Left: Config & Stats -->
+                    <div class="admin-column">
+                        <!-- API Configurations -->
+                        <div class="glass-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-key"></i> API Configuration</h3>
+                                <span id="config-status-badge" class="badge badge-error">Unconfigured</span>
+                            </div>
+                            <form id="config-form" class="config-form">
+                                <div class="form-group">
+                                    <label for="pinecone-key"><i class="fa-solid fa-database"></i> Pinecone API Key</label>
+                                    <input type="password" id="pinecone-key" placeholder="Enter Pinecone API key..." required autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label for="pinecone-index"><i class="fa-solid fa-list-ol"></i> Pinecone Index Name</label>
+                                    <input type="text" id="pinecone-index" value="ayurveda-index" required autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label for="gemini-key"><i class="fa-solid fa-brain"></i> Gemini API Key</label>
+                                    <input type="password" id="gemini-key" placeholder="Enter Gemini API key..." required autocomplete="off">
+                                </div>
+                                <button type="submit" id="btn-save-config" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-floppy-disk"></i> Validate & Save Keys
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Index Statistics -->
+                        <div class="glass-card mt-2">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-chart-pie"></i> Database Index Stats</h3>
+                                <button id="btn-refresh-stats" class="btn-icon" title="Refresh Stats"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            </div>
+                            <div class="stats-list">
+                                <div class="stat-item">
+                                    <span class="stat-label">Index Status</span>
+                                    <span id="stat-index-status" class="stat-value text-error">Offline</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Indexed Vectors</span>
+                                    <span id="stat-total-vectors" class="stat-value">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Vector Dimension</span>
+                                    <span class="stat-value">1024 (llama-text-embed-v2)</span>
+                                </div>
+                            </div>
+                            
+                            <hr class="card-divider">
+                            
+                            <div class="danger-zone">
+                                <h4>Danger Zone</h4>
+                                <p>Deleting the index will completely wipe out all vectors, books, and references from the database.</p>
+                                <button id="btn-clear-index" class="btn btn-danger btn-block"><i class="fa-solid fa-trash-can"></i> Purge & Delete Index</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Ingestion & Library -->
+                    <div class="admin-column">
+                        <!-- Book Upload Ingestor -->
+                        <div class="glass-card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-file-arrow-up"></i> Upload Ayurveda Books</h3>
+                            </div>
+                            <div id="drop-zone" class="drop-zone">
+                                <i class="fa-solid fa-file-pdf file-upload-icon"></i>
+                                <p class="drop-text">Drag & drop your reference PDF book here</p>
+                                <span class="or-divider">or</span>
+                                <label for="file-input" class="file-input-label">Select File</label>
+                                <input type="file" id="file-input" accept=".pdf" class="hidden">
+                            </div>
+                            <div id="upload-progress-container" class="upload-progress-container hidden">
+                                <h4 class="progress-title"><i class="fa-solid fa-circle-notch fa-spin"></i> Uploading & Indexing:</h4>
+                                <div id="upload-items-list" class="upload-items-list">
+                                    <!-- Dynamic upload items progress -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Library Catalog -->
+                        <div class="glass-card mt-2">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-folder-open"></i> Document Library</h3>
+                                <span id="library-count-badge" class="badge">0 Books</span>
+                            </div>
+                            <div class="library-container">
+                                <div id="library-empty-state" class="empty-state">
+                                    <i class="fa-solid fa-book-bookmark"></i>
+                                    <p>No books indexed yet. Upload reference books to begin.</p>
+                                </div>
+                                <table id="library-table" class="library-table hidden">
+                                    <thead>
+                                        <tr>
+                                            <th>Book Title</th>
+                                            <th>Text Chunks</th>
+                                            <th>Uploaded At</th>
+                                            <th class="text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="library-list">
+                                        <!-- Dynamic library files -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 Sushruta RAG. All health advice is compiled from digitized traditional Ayurveda scriptures. Consult a physician before starting remedies.</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
