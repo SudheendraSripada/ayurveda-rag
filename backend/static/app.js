@@ -1,540 +1,345 @@
-// State management
-let isConfigured = false;
-let uploadIntervals = {}; // Poll tracking for files
+// State Management
+let conversationHistory = [];
+let isGenerating = false;
+let currentSources = [];
 
 // DOM Elements
-const btnUserView = document.getElementById("btn-user-view");
-const btnAdminView = document.getElementById("btn-admin-view");
-const userView = document.getElementById("user-view");
-const adminView = document.getElementById("admin-view");
-
-const adminLockCard = document.getElementById("admin-lock-card");
-const adminContent = document.getElementById("admin-content");
-const adminPasscode = document.getElementById("admin-passcode");
-const btnUnlockAdmin = document.getElementById("btn-unlock-admin");
-
-const configStatusBadge = document.getElementById("config-status-badge");
-const configForm = document.getElementById("config-form");
-const pineconeKeyInput = document.getElementById("pinecone-key");
-const pineconeIndexInput = document.getElementById("pinecone-index");
-const geminiKeyInput = document.getElementById("gemini-key");
-
-const statIndexStatus = document.getElementById("stat-index-status");
-const statTotalVectors = document.getElementById("stat-total-vectors");
-const btnRefreshStats = document.getElementById("btn-refresh-stats");
-const btnClearIndex = document.getElementById("btn-clear-index");
-
-const dropZone = document.getElementById("drop-zone");
-const fileInput = document.getElementById("file-input");
-const uploadProgressContainer = document.getElementById("upload-progress-container");
-const uploadItemsList = document.getElementById("upload-items-list");
-
-const libraryEmptyState = document.getElementById("library-empty-state");
-const libraryTable = document.getElementById("library-table");
-const libraryList = document.getElementById("library-list");
-const libraryCountBadge = document.getElementById("library-count-badge");
-
-const searchForm = document.getElementById("search-form");
-const searchInput = document.getElementById("search-input");
+const chatMessages = document.getElementById("chat-messages");
+const welcomeScreen = document.getElementById("welcome-screen");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const btnSend = document.getElementById("btn-send");
 const checkboxRerank = document.getElementById("checkbox-rerank");
-const remedyLoading = document.getElementById("remedy-loading");
-const remedyError = document.getElementById("remedy-error");
-const remedyResultCard = document.getElementById("remedy-result-card");
-const remedyContentMarkdown = document.getElementById("remedy-content-markdown");
-const btnPrintRemedy = document.getElementById("btn-print-remedy");
+const btnNewChat = document.getElementById("btn-new-chat");
+const btnClearChat = document.getElementById("btn-clear-chat");
+const corpusBadge = document.getElementById("corpus-status-badge");
 
-const sourcesHeader = document.getElementById("sources-header");
-const sourcesListContainer = document.getElementById("sources-list-container");
-const sourcesSection = document.querySelector(".sources-section");
-const sourceCount = document.getElementById("source-count");
+// Settings Modal Elements
+const btnSettingsModal = document.getElementById("btn-settings-modal");
+const settingsModal = document.getElementById("settings-modal");
+const btnCloseSettings = document.getElementById("btn-close-settings");
+const btnCancelSettings = document.getElementById("btn-cancel-settings");
+const settingsForm = document.getElementById("settings-form");
+const pineconeKeyInput = document.getElementById("pinecone-api-key");
+const pineconeIndexInput = document.getElementById("pinecone-index-name");
+const geminiKeyInput = document.getElementById("gemini-api-key");
 
-// Initialize on Load
+// Popover Element
+const citationPopover = document.getElementById("citation-popover");
+const popoverBookTitle = document.getElementById("popover-book-title");
+const popoverPage = document.getElementById("popover-page");
+const popoverExcerpt = document.getElementById("popover-excerpt");
+
+// Initialize on DOM Load
 document.addEventListener("DOMContentLoaded", () => {
-    checkConfigStatus();
+    marked.setOptions({ breaks: true, gfm: true });
     setupEventListeners();
-    
-    // Configure markdown parser options
-    marked.setOptions({
-        breaks: true,
-        gfm: true
-    });
+    checkConfig();
 });
 
-// Setup Event Listeners
 function setupEventListeners() {
-    // Navigation Toggles
-    btnUserView.addEventListener("click", () => {
-        btnUserView.classList.add("active");
-        btnAdminView.classList.remove("active");
-        userView.classList.remove("hidden");
-        adminView.classList.add("hidden");
+    // Chat Submit
+    chatForm.addEventListener("submit", handleSubmit);
+
+    // Auto-resizing textarea & Keybindings
+    chatInput.addEventListener("input", () => {
+        chatInput.style.height = "auto";
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 180) + "px";
     });
 
-    btnAdminView.addEventListener("click", () => {
-        btnAdminView.classList.add("active");
-        btnUserView.classList.remove("active");
-        adminView.classList.remove("hidden");
-        userView.classList.add("hidden");
-    });
-
-    // Admin Passcode Lock
-    btnUnlockAdmin.addEventListener("click", unlockAdminConsole);
-    adminPasscode.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") unlockAdminConsole();
-    });
-
-    // Config Save Form
-    configForm.addEventListener("submit", saveConfiguration);
-
-    // Refresh Stats
-    btnRefreshStats.addEventListener("click", fetchIndexStats);
-    
-    // Reset Database
-    btnClearIndex.addEventListener("click", purgeDatabase);
-
-    // File Upload Handlers
-    dropZone.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", handleFileSelect);
-    
-    // Drag & Drop
-    dropZone.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        dropZone.classList.add("dragover");
-    });
-    
-    dropZone.addEventListener("dragleave", () => {
-        dropZone.classList.remove("dragover");
-    });
-    
-    dropZone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        dropZone.classList.remove("dragover");
-        if (e.dataTransfer.files.length > 0) {
-            uploadFile(e.dataTransfer.files[0]);
-        }
-    });
-
-    // Remedy Query Form
-    searchForm.addEventListener("submit", executeRemedySearch);
-
-    // Accordion toggle for references
-    sourcesHeader.addEventListener("click", () => {
-        sourcesSection.classList.toggle("expanded");
-        sourcesListContainer.classList.toggle("hidden");
-    });
-
-    // Print Remedy
-    btnPrintRemedy.addEventListener("click", () => {
-        window.print();
-    });
-}
-
-// Config Status Check
-async function checkConfigStatus() {
-    try {
-        const res = await fetch("/api/config-status");
-        const status = await res.json();
-        
-        isConfigured = status.configured;
-        if (status.configured) {
-            configStatusBadge.textContent = "Configured";
-            configStatusBadge.className = "badge badge-success";
-            
-            // Prefill with placeholders if configured to hide raw keys
-            pineconeKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
-            geminiKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
-            pineconeIndexInput.value = status.index_name;
-            
-            // Refresh stats
-            fetchIndexStats();
-            fetchLibrary();
-        } else {
-            configStatusBadge.textContent = "Unconfigured";
-            configStatusBadge.className = "badge badge-error";
-        }
-    } catch (err) {
-        console.error("Failed to check configuration status:", err);
-    }
-}
-
-// Unlock Admin View
-function unlockAdminConsole() {
-    const pin = adminPasscode.value.trim();
-    if (pin === "admin123") {
-        adminLockCard.classList.add("hidden");
-        adminContent.classList.remove("hidden");
-        adminPasscode.value = "";
-    } else {
-        alert("Incorrect passcode. Try again!");
-        adminPasscode.value = "";
-        adminPasscode.focus();
-    }
-}
-
-// Save Configurations
-async function saveConfiguration(e) {
-    e.preventDefault();
-    
-    const pineconeKey = pineconeKeyInput.value.trim();
-    const geminiKey = geminiKeyInput.value.trim();
-    const indexName = pineconeIndexInput.value.trim();
-    
-    const saveBtn = document.getElementById("btn-save-config");
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-    
-    try {
-        const response = await fetch("/api/config", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                pinecone_api_key: pineconeKey || "",
-                pinecone_index_name: indexName,
-                gemini_api_key: geminiKey || ""
-            })
-        });
-        
-        const data = await response.json();
-        if (response.ok) {
-            alert(data.message);
-            isConfigured = true;
-            configStatusBadge.textContent = "Configured";
-            configStatusBadge.className = "badge badge-success";
-            
-            // Clear input text and show placeholders
-            pineconeKeyInput.value = "";
-            geminiKeyInput.value = "";
-            pineconeKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
-            geminiKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
-            
-            fetchIndexStats();
-            fetchLibrary();
-        } else {
-            alert("Configuration Error: " + data.detail);
-        }
-    } catch (err) {
-        alert("Failed to save credentials: network error.");
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Validate & Save Keys';
-    }
-}
-
-// Fetch Index Stats
-async function fetchIndexStats() {
-    try {
-        const res = await fetch("/api/index-stats");
-        const stats = await res.json();
-        
-        if (stats.exists) {
-            statIndexStatus.textContent = "Online & Ready";
-            statIndexStatus.className = "stat-value text-success";
-            statTotalVectors.textContent = stats.total_vector_count.toLocaleString();
-        } else {
-            statIndexStatus.textContent = "Offline / Empty";
-            statIndexStatus.className = "stat-value text-error";
-            statTotalVectors.textContent = "0";
-            if (stats.error) {
-                console.error("Pinecone status details:", stats.error);
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (!isGenerating && chatInput.value.trim().length > 0) {
+                chatForm.dispatchEvent(new Event("submit"));
             }
         }
-    } catch (err) {
-        console.error("Failed to fetch index stats:", err);
-    }
+    });
+
+    // New Chat / Clear Chat
+    btnNewChat.addEventListener("click", resetConversation);
+    btnClearChat.addEventListener("click", resetConversation);
+
+    // Quick Prompt Chips & Welcome Cards
+    document.querySelectorAll("[data-prompt]").forEach(el => {
+        el.addEventListener("click", () => {
+            const promptText = el.getAttribute("data-prompt");
+            if (promptText) {
+                chatInput.value = promptText;
+                chatInput.dispatchEvent(new Event("input"));
+                chatForm.dispatchEvent(new Event("submit"));
+            }
+        });
+    });
+
+    // Settings Modal
+    btnSettingsModal.addEventListener("click", () => settingsModal.classList.remove("hidden"));
+    btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
+    btnCancelSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
+    settingsForm.addEventListener("submit", saveSettings);
+    
+    // Hide popover on global click
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest(".inline-citation") && !e.target.closest(".source-chip")) {
+            citationPopover.classList.add("hidden");
+        }
+    });
 }
 
-// Fetch Library File Catalog
-async function fetchLibrary() {
+// Check Backend Config
+async function checkConfig() {
     try {
-        const res = await fetch("/api/documents");
-        const docs = await res.json();
-        
-        const filenames = Object.keys(docs);
-        libraryCountBadge.textContent = `${filenames.length} Book${filenames.length === 1 ? '' : 's'}`;
-        
-        if (filenames.length === 0) {
-            libraryEmptyState.classList.remove("hidden");
-            libraryTable.classList.add("hidden");
-            return;
+        const res = await fetch("/api/config-status");
+        const data = await res.json();
+        if (data.configured) {
+            pineconeKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
+            geminiKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
+            pineconeIndexInput.value = data.index_name || "ayurveda-index";
         }
         
-        libraryEmptyState.classList.add("hidden");
-        libraryTable.classList.remove("hidden");
-        
-        libraryList.innerHTML = "";
-        filenames.forEach(name => {
-            const doc = docs[name];
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td class="book-title-cell"><i class="fa-solid fa-file-pdf text-error"></i> ${doc.filename}</td>
-                <td>${doc.chunk_count.toLocaleString()}</td>
-                <td>${doc.indexed_at}</td>
-                <td class="text-right">
-                    <button class="btn-delete-doc" data-filename="${doc.filename}" title="Remove Book Metadata"><i class="fa-solid fa-trash-can"></i></button>
-                </td>
-            `;
-            
-            tr.querySelector(".btn-delete-doc").addEventListener("click", async (e) => {
-                if (confirm(`Are you sure you want to remove the metadata index reference for '${doc.filename}'?`)) {
-                    await deleteDocumentMetadata(doc.filename);
-                }
-            });
-            
-            libraryList.appendChild(tr);
-        });
+        // Fetch index stats
+        const statsRes = await fetch("/api/index-stats");
+        const statsData = await statsRes.json();
+        if (statsData.exists && statsData.total_vector_count > 0) {
+            corpusBadge.innerHTML = `<i class="fa-solid fa-check"></i> <span>${statsData.total_vector_count.toLocaleString()} Chunks Active</span>`;
+        }
     } catch (err) {
-        console.error("Failed to fetch document library:", err);
+        console.error("Config check note:", err);
     }
 }
 
-// Delete Document Metadata
-async function deleteDocumentMetadata(filename) {
+// Save Settings
+async function saveSettings(e) {
+    e.preventDefault();
+    const payload = {
+        pinecone_api_key: pineconeKeyInput.value.trim() || undefined,
+        pinecone_index_name: pineconeIndexInput.value.trim() || "ayurveda-index",
+        gemini_api_key: geminiKeyInput.value.trim() || undefined
+    };
+    
     try {
-        const res = await fetch(`/api/documents/${filename}`, { method: "DELETE" });
+        const res = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
         if (res.ok) {
-            fetchLibrary();
+            alert("Settings updated successfully.");
+            settingsModal.classList.add("hidden");
+            checkConfig();
         } else {
             const err = await res.json();
             alert("Error: " + err.detail);
         }
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-// Purge and Reset DB
-async function purgeDatabase() {
-    if (!confirm("CRITICAL WARNING: This will completely delete the Pinecone index, library catalog records, and all uploaded text passages. This cannot be undone! Are you sure?")) {
-        return;
-    }
-    
-    const purgeBtn = document.getElementById("btn-clear-index");
-    purgeBtn.disabled = true;
-    purgeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Resetting...';
-    
-    try {
-        const res = await fetch("/api/clear-index", { method: "POST" });
-        const data = await res.json();
-        
-        if (res.ok) {
-            alert(data.message);
-            fetchIndexStats();
-            fetchLibrary();
-        } else {
-            alert("Error resetting database: " + data.detail);
-        }
     } catch (err) {
-        alert("Failed to reset database: network error.");
-    } finally {
-        purgeBtn.disabled = false;
-        purgeBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Purge & Delete Index';
+        alert("Failed to save settings.");
     }
 }
 
-// Upload Book Ingestion
-function handleFileSelect(e) {
-    if (e.target.files.length > 0) {
-        uploadFile(e.target.files[0]);
-    }
+// Reset Conversation
+function resetConversation() {
+    conversationHistory = [];
+    currentSources = [];
+    chatMessages.innerHTML = "";
+    chatMessages.appendChild(welcomeScreen);
+    welcomeScreen.classList.remove("hidden");
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+    chatInput.focus();
 }
 
-async function uploadFile(file) {
-    if (!isConfigured) {
-        alert("Please configure and save API credentials first!");
-        return;
-    }
-    
-    if (!file.name.endsWith(".pdf")) {
-        alert("Only PDF files are supported.");
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append("file", file);
-    
-    // Add to progress items list
-    uploadProgressContainer.classList.remove("hidden");
-    const itemEl = document.createElement("div");
-    itemEl.className = "upload-item";
-    itemEl.id = `upload-${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    itemEl.innerHTML = `
-        <div class="upload-item-header">
-            <span class="upload-item-name">${file.name}</span>
-            <span class="upload-item-status badge badge-process">Uploading...</span>
-        </div>
-        <div class="upload-progress-bar-wrapper">
-            <div class="upload-progress-bar" style="width: 15%"></div>
-        </div>
-        <p class="upload-item-desc">Sending file to backend server...</p>
-    `;
-    uploadItemsList.appendChild(itemEl);
-    
-    try {
-        const res = await fetch("/api/upload", {
-            method: "POST",
-            body: formData
-        });
-        
-        const data = await res.json();
-        if (res.ok) {
-            itemEl.querySelector(".upload-progress-bar").style.width = "40%";
-            itemEl.querySelector(".upload-item-status").textContent = "Ingesting";
-            itemEl.querySelector(".upload-item-desc").textContent = "Background text extraction and segment chunking started.";
-            
-            // Start polling progress
-            startPollingUpload(file.name, itemEl);
-        } else {
-            itemEl.querySelector(".upload-item-status").textContent = "Failed";
-            itemEl.querySelector(".upload-item-status").className = "upload-item-status badge badge-error";
-            itemEl.querySelector(".upload-item-desc").textContent = `Upload failed: ${data.detail}`;
-            itemEl.querySelector(".upload-progress-bar").style.width = "0%";
-        }
-    } catch (err) {
-        itemEl.querySelector(".upload-item-status").textContent = "Failed";
-        itemEl.querySelector(".upload-item-status").className = "upload-item-status badge badge-error";
-        itemEl.querySelector(".upload-item-desc").textContent = "Upload failed: network error.";
-    }
-}
-
-// Poll Background Progress
-function startPollingUpload(filename, itemEl) {
-    const progressBar = itemEl.querySelector(".upload-progress-bar");
-    const statusBadge = itemEl.querySelector(".upload-item-status");
-    const descText = itemEl.querySelector(".upload-item-desc");
-    
-    progressBar.classList.add("processing");
-    progressBar.style.width = "75%";
-    
-    const intervalId = setInterval(async () => {
-        try {
-            const res = await fetch("/api/upload-status");
-            const statusMap = await res.json();
-            
-            const fileStatus = statusMap[filename];
-            if (fileStatus) {
-                descText.textContent = fileStatus.progress;
-                
-                if (fileStatus.status === "Completed") {
-                    clearInterval(intervalId);
-                    progressBar.classList.remove("processing");
-                    progressBar.style.width = "100%";
-                    statusBadge.textContent = "Completed";
-                    statusBadge.className = "upload-item-status badge badge-success";
-                    descText.textContent = `Successfully indexed! Segmented into ${fileStatus.chunks} chunks in Pinecone.`;
-                    
-                    // Refresh library and stats
-                    fetchLibrary();
-                    fetchIndexStats();
-                    
-                    // Remove progress item after 5 seconds
-                    setTimeout(() => {
-                        itemEl.remove();
-                        if (uploadItemsList.children.length === 0) {
-                            uploadProgressContainer.classList.add("hidden");
-                        }
-                    }, 5000);
-                } else if (fileStatus.status === "Failed") {
-                    clearInterval(intervalId);
-                    progressBar.classList.remove("processing");
-                    progressBar.style.width = "0%";
-                    statusBadge.textContent = "Failed";
-                    statusBadge.className = "upload-item-status badge badge-error";
-                    descText.textContent = fileStatus.progress;
-                }
-            }
-        } catch (e) {
-            console.error("Error polling upload status:", e);
-        }
-    }, 2000);
-    
-    uploadIntervals[filename] = intervalId;
-}
-
-// User Remedy Finder: Search Symptoms
-async function executeRemedySearch(e) {
+// Handle Message Submission
+async function handleSubmit(e) {
     e.preventDefault();
-    
-    const queryText = searchInput.value.trim();
-    const useRerank = checkboxRerank.checked;
-    
-    if (!queryText) return;
-    
-    // UI State resets
-    remedyLoading.classList.remove("hidden");
-    remedyError.classList.add("hidden");
-    remedyResultCard.classList.add("hidden");
-    
-    // Scroll to loading indicator
-    remedyLoading.scrollIntoView({ behavior: "smooth" });
-    
+    const userText = chatInput.value.trim();
+    if (!userText || isGenerating) return;
+
+    // Hide welcome hero on first message
+    welcomeScreen.classList.add("hidden");
+
+    // Append User Message to UI
+    appendMessage("user", userText);
+    conversationHistory.push({ role: "user", content: userText });
+
+    // Reset input
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+    isGenerating = true;
+    btnSend.disabled = true;
+
+    // Append Typing Indicator
+    const typingIndicatorEl = createTypingIndicator();
+    chatMessages.appendChild(typingIndicatorEl);
+    scrollToBottom();
+
     try {
-        const response = await fetch("/api/query", {
+        const response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                query: queryText,
-                rerank: useRerank
+                messages: conversationHistory,
+                rerank: checkboxRerank.checked
             })
         });
-        
+
         const data = await response.json();
-        
+        typingIndicatorEl.remove();
+
         if (response.ok) {
-            // Render Markdown remedy content
-            remedyContentMarkdown.innerHTML = marked.parse(data.remedy);
-            
-            // Render reference sources
-            renderSources(data.sources);
-            
-            // Show result card
-            remedyLoading.classList.add("hidden");
-            remedyResultCard.classList.remove("hidden");
-            remedyResultCard.scrollIntoView({ behavior: "smooth" });
+            currentSources = data.sources || [];
+            appendMessage("doctor", data.reply, data.sources);
+            conversationHistory.push({ role: "model", content: data.reply });
         } else {
-            remedyLoading.classList.add("hidden");
-            remedyError.classList.remove("hidden");
-            document.getElementById("error-message").textContent = data.detail || "Failed to generate remedy. Please check server logs.";
+            appendErrorMessage(data.detail || "Failed to generate doctor consultation. Please verify API keys in Settings.");
         }
     } catch (err) {
-        remedyLoading.classList.add("hidden");
-        remedyError.classList.remove("hidden");
-        document.getElementById("error-message").textContent = "Network error. Make sure the FastAPI server is running.";
+        typingIndicatorEl.remove();
+        appendErrorMessage("Network error connecting to backend. Please ensure the server is running on http://127.0.0.1:8000.");
+    } finally {
+        isGenerating = false;
+        btnSend.disabled = false;
+        scrollToBottom();
     }
 }
 
-// Render Accordion References List
-function renderSources(sources) {
-    sourcesListContainer.innerHTML = "";
-    sourceCount.textContent = sources.length;
-    
-    if (!sources || sources.length === 0) {
-        sourcesListContainer.innerHTML = `
-            <div class="empty-state">
-                <i class="fa-solid fa-circle-info"></i>
-                <p>No matching passages found in the document library. General remedy generated.</p>
+// Append Message Bubble to UI
+function appendMessage(sender, text, sources = []) {
+    const row = document.createElement("div");
+    row.className = `message-row ${sender}`;
+
+    if (sender === "doctor") {
+        row.innerHTML = `
+            <div class="message-avatar" title="Sage Dhanvantari">
+                <i class="fa-solid fa-leaf"></i>
             </div>
-        `;
-        return;
-    }
-    
-    // Render source cards
-    sources.forEach(src => {
-        const card = document.createElement("div");
-        card.className = "source-excerpt-card";
-        
-        // Convert score to percentage
-        const matchPct = Math.round(src.score * 100);
-        
-        card.innerHTML = `
-            <div class="source-card-header">
-                <span class="source-book-name"><i class="fa-solid fa-book"></i> ${src.source_book}</span>
-                <div>
-                    <span class="source-page">Page ${src.page_number}</span>
-                    <span class="badge badge-success" style="margin-left: 5px">${matchPct}% Relevance</span>
+            <div class="message-bubble">
+                ${sources && sources.length > 0 ? renderSourcesTray(sources) : ''}
+                <div class="markdown-body">
+                    ${formatMessageWithCitations(text, sources)}
                 </div>
             </div>
-            <p class="source-text">"${src.text.trim()}"</p>
         `;
-        sourcesListContainer.appendChild(card);
+
+        // Attach event listeners for citation pills and source chips
+        attachCitationListeners(row, sources);
+    } else {
+        row.innerHTML = `
+            <div class="message-bubble">
+                ${escapeHTML(text)}
+            </div>
+        `;
+    }
+
+    chatMessages.appendChild(row);
+    scrollToBottom();
+}
+
+// Render Sources Tray (Perplexity Style)
+function renderSourcesTray(sources) {
+    const chipsHtml = sources.map((s, idx) => {
+        const num = idx + 1;
+        const shortTitle = s.source_book.length > 28 ? s.source_book.substring(0, 26) + '...' : s.source_book;
+        return `
+            <button class="source-chip" data-idx="${idx}" title="${escapeHTML(s.source_book)} - Page ${s.page_number}">
+                <span class="chip-num">${num}</span>
+                <span>${escapeHTML(shortTitle)}</span>
+            </button>
+        `;
+    }).join('');
+
+    return `
+        <div class="sources-tray">
+            <div class="sources-label"><i class="fa-solid fa-book-bookmark"></i> Scriptural Sources (${sources.length})</div>
+            <div class="sources-chips">
+                ${chipsHtml}
+            </div>
+        </div>
+    `;
+}
+
+// Parse markdown and convert [1], [2] into interactive citation badges
+function formatMessageWithCitations(text, sources) {
+    // Replace [1], [2], [1][2] with interactive badge elements before markdown
+    let processed = text.replace(/\[(\d+)\]/g, (match, p1) => {
+        const idx = parseInt(p1, 10);
+        return `<a class="inline-citation" data-source-idx="${idx - 1}" href="javascript:void(0);">[${idx}]</a>`;
     });
+
+    return marked.parse(processed);
+}
+
+// Attach hover / click popovers to citations
+function attachCitationListeners(container, sources) {
+    if (!sources || sources.length === 0) return;
+
+    // Attach to inline citations [1], [2]
+    container.querySelectorAll(".inline-citation, .source-chip").forEach(el => {
+        el.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const idx = parseInt(el.getAttribute("data-source-idx") || el.getAttribute("data-idx"), 10);
+            if (sources[idx]) {
+                showCitationPopover(sources[idx], el);
+            }
+        });
+    });
+}
+
+function showCitationPopover(source, anchorEl) {
+    popoverBookTitle.textContent = source.source_book || "Ayurvedic Scripture";
+    popoverPage.textContent = `Page ${source.page_number || 'N/A'}`;
+    popoverExcerpt.textContent = `"${(source.text || '').trim()}"`;
+
+    const rect = anchorEl.getBoundingClientRect();
+    citationPopover.style.left = Math.min(rect.left, window.innerWidth - 380) + "px";
+    citationPopover.style.top = (rect.bottom + 8) + "px";
+
+    citationPopover.classList.remove("hidden");
+}
+
+function createTypingIndicator() {
+    const row = document.createElement("div");
+    row.className = "message-row doctor";
+    row.id = "typing-row";
+    row.innerHTML = `
+        <div class="message-avatar">
+            <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div class="message-bubble" style="padding: 0.9rem 1.25rem;">
+            <div class="typing-indicator">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span style="margin-left: 8px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Consulting classical Ayurvedic scriptures...</span>
+            </div>
+        </div>
+    `;
+    return row;
+}
+
+function appendErrorMessage(errorText) {
+    const row = document.createElement("div");
+    row.className = "message-row doctor";
+    row.innerHTML = `
+        <div class="message-avatar" style="color: #ef4444; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.1);">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="message-bubble" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); color: #fca5a5;">
+            <strong>Consultation Notice:</strong> ${escapeHTML(errorText)}
+        </div>
+    `;
+    chatMessages.appendChild(row);
+    scrollToBottom();
+}
+
+function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
