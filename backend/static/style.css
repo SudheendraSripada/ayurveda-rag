@@ -47,6 +47,11 @@ body {
     display: flex;
 }
 
+/* Global Hidden Helper - Strictly Enforced */
+.hidden {
+    display: none !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;
@@ -545,10 +550,6 @@ body {
     flex-direction: column;
     height: calc(100vh - 60px);
     overflow: hidden;
-}
-
-.view-container.hidden {
-    display: none !important;
 }
 
 /* Chat Messages (ChatGPT Style Centered Layout) */
@@ -1130,7 +1131,7 @@ body {
     color: var(--text-dim);
 }
 
-/* Modals */
+/* Modals - Absolute Isolation */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1144,6 +1145,10 @@ body {
     justify-content: center;
     z-index: 200;
     padding: 1rem;
+}
+
+.modal-overlay.hidden {
+    display: none !important;
 }
 
 .modal-card {
@@ -1259,6 +1264,10 @@ body {
     z-index: 300;
     pointer-events: none;
     animation: fadeIn 0.2s ease-out;
+}
+
+.citation-popover.hidden {
+    display: none !important;
 }
 
 .citation-header {
