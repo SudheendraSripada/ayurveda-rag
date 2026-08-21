@@ -1,6 +1,9 @@
 import json
+import logging
 from google import genai
 from google.genai import types
+
+logger = logging.getLogger("gemini-helper")
 
 SYSTEM_INSTRUCTION = """You are "Sage Dhanvantari", an expert, compassionate Ayurvedic physician and senior wellness consultant. 
 
@@ -32,16 +35,16 @@ Organize your consultation in clean, engaging Markdown:
 - **Pathya & Apathya (Diet & Lifestyle)**:
   - Foods & habits to embrace (Pathya).
   - Foods & habits to strictly avoid (Apathya).
-- **Dinacharya / Lifestyle Recommendation**: Relevant yoga asana, pranayama, or daily habit.
+  - Relevant daily routine advice (Dinacharya).
 - **Precautions & Medical Disclaimer**: When to consult a clinic and specific contraindications (pregnancy, children, high BP).
-- **Ask a Follow-Up Question**: Conclude with a helpful diagnostic follow-up question (e.g., asking about bowel regularity, sleep quality, or duration of symptoms) to maintain an interactive dialogue.
+- **Follow-Up Question**: Conclude with a helpful diagnostic question (e.g. asking about digestion, sleep, duration) to maintain an interactive consultation.
 """
 
 def generate_chat_remedy(
     api_key: str, 
     messages: list[dict], 
     context_passages: list[dict], 
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-3.6-flash"
 ) -> str:
     """Generate multi-turn Ayurvedic consultation response using Gemini with retrieved context."""
     client = genai.Client(api_key=api_key)
@@ -59,15 +62,12 @@ def generate_chat_remedy(
     else:
         context_str = "=== SCRIPTURAL PASSAGES FROM AYURVEDIC BOOKS ===\nNo direct passages found in the uploaded index.\n\n"
         
-    # Format dialogue history
     formatted_contents = []
     
-    # Prepend context to the latest user message
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
         
-        # If it's the last user message, attach context
         if i == len(messages) - 1 and role == "user":
             user_content = f"{context_str}Patient Query / Message:\n{content}"
             formatted_contents.append(user_content)
@@ -79,13 +79,27 @@ def generate_chat_remedy(
         temperature=0.25
     )
     
-    response = client.models.generate_content(
-        model=model_name,
-        contents=formatted_contents,
-        config=config
-    )
+    # Candidate models in order of priority
+    candidate_models = [
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-flash-latest"
+    ]
     
-    return response.text
+    last_err = None
+    for model in candidate_models:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=formatted_contents,
+                config=config
+            )
+            return response.text
+        except Exception as e:
+            logger.warning(f"Model {model} failed: {str(e)}. Attempting next candidate...")
+            last_err = e
+            
+    raise last_err or Exception("All Gemini model generation attempts failed.")
 
 if __name__ == "__main__":
-    print("Gemini Helper initialized with Perplexity-style citations and Chat persona.")
+    print("Gemini Helper configured with gemini-3.6-flash primary model.")

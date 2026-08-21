@@ -1,9 +1,25 @@
 // State Management
-let conversationHistory = [];
+let currentSessionId = null;
+let chatSessions = [];
 let isGenerating = false;
 let currentSources = [];
 
+// Storage Keys
+const SESSIONS_STORAGE_KEY = "sushruta_chat_sessions_v1";
+
 // DOM Elements
+const sidebar = document.getElementById("sidebar");
+const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
+const btnCollapseSidebar = document.getElementById("btn-collapse-sidebar");
+
+const tabChat = document.getElementById("tab-chat");
+const tabBrochure = document.getElementById("tab-brochure");
+const btnHeaderBrochure = document.getElementById("btn-header-brochure");
+const btnTryConsultation = document.getElementById("btn-try-consultation");
+
+const chatView = document.getElementById("chat-view");
+const brochureView = document.getElementById("brochure-view");
+
 const chatMessages = document.getElementById("chat-messages");
 const welcomeScreen = document.getElementById("welcome-screen");
 const chatForm = document.getElementById("chat-form");
@@ -12,6 +28,8 @@ const btnSend = document.getElementById("btn-send");
 const checkboxRerank = document.getElementById("checkbox-rerank");
 const btnNewChat = document.getElementById("btn-new-chat");
 const btnClearChat = document.getElementById("btn-clear-chat");
+const historyList = document.getElementById("history-list");
+const btnClearAllHistory = document.getElementById("btn-clear-all-history");
 const corpusBadge = document.getElementById("corpus-status-badge");
 
 // Settings Modal Elements
@@ -24,24 +42,51 @@ const pineconeKeyInput = document.getElementById("pinecone-api-key");
 const pineconeIndexInput = document.getElementById("pinecone-index-name");
 const geminiKeyInput = document.getElementById("gemini-api-key");
 
-// Popover Element
+// Legal Modal Elements
+const legalModal = document.getElementById("legal-modal");
+const legalModalTitle = document.getElementById("legal-modal-title");
+const legalModalContent = document.getElementById("legal-modal-content");
+const btnCloseLegal = document.getElementById("btn-close-legal");
+const btnDismissLegal = document.getElementById("btn-dismiss-legal");
+const btnOpenPrivacy = document.getElementById("btn-open-privacy");
+const btnOpenTerms = document.getElementById("btn-open-terms");
+const btnOpenDisclaimer = document.getElementById("btn-open-disclaimer");
+
+// Popover Elements
 const citationPopover = document.getElementById("citation-popover");
 const popoverBookTitle = document.getElementById("popover-book-title");
 const popoverPage = document.getElementById("popover-page");
 const popoverExcerpt = document.getElementById("popover-excerpt");
 
-// Initialize on DOM Load
+// Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
     marked.setOptions({ breaks: true, gfm: true });
+    loadChatSessions();
     setupEventListeners();
-    checkConfig();
+    checkBackendConfig();
 });
 
+// Event Listeners
 function setupEventListeners() {
-    // Chat Submit
+    // Sidebar Collapse / Expand
+    btnToggleSidebar.addEventListener("click", () => {
+        sidebar.classList.toggle("collapsed");
+    });
+
+    btnCollapseSidebar.addEventListener("click", () => {
+        sidebar.classList.add("collapsed");
+    });
+
+    // View Switching
+    tabChat.addEventListener("click", () => switchView("chat"));
+    tabBrochure.addEventListener("click", () => switchView("brochure"));
+    btnHeaderBrochure.addEventListener("click", () => switchView("brochure"));
+    btnTryConsultation.addEventListener("click", () => switchView("chat"));
+
+    // Chat Form Submission
     chatForm.addEventListener("submit", handleSubmit);
 
-    // Auto-resizing textarea & Keybindings
+    // Textarea Auto-expand & Enter to Send
     chatInput.addEventListener("input", () => {
         chatInput.style.height = "auto";
         chatInput.style.height = Math.min(chatInput.scrollHeight, 180) + "px";
@@ -56,15 +101,17 @@ function setupEventListeners() {
         }
     });
 
-    // New Chat / Clear Chat
-    btnNewChat.addEventListener("click", resetConversation);
-    btnClearChat.addEventListener("click", resetConversation);
+    // New Chat & Clear Current
+    btnNewChat.addEventListener("click", () => startNewSession());
+    btnClearChat.addEventListener("click", () => clearCurrentSession());
+    btnClearAllHistory.addEventListener("click", clearAllHistory);
 
-    // Quick Prompt Chips & Welcome Cards
+    // Quick Topic Chips & Cards
     document.querySelectorAll("[data-prompt]").forEach(el => {
         el.addEventListener("click", () => {
             const promptText = el.getAttribute("data-prompt");
             if (promptText) {
+                switchView("chat");
                 chatInput.value = promptText;
                 chatInput.dispatchEvent(new Event("input"));
                 chatForm.dispatchEvent(new Event("submit"));
@@ -77,8 +124,15 @@ function setupEventListeners() {
     btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     btnCancelSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     settingsForm.addEventListener("submit", saveSettings);
-    
-    // Hide popover on global click
+
+    // Legal Modals
+    btnOpenPrivacy.addEventListener("click", () => openLegalModal("privacy"));
+    btnOpenTerms.addEventListener("click", () => openLegalModal("terms"));
+    btnOpenDisclaimer.addEventListener("click", () => openLegalModal("disclaimer"));
+    btnCloseLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
+    btnDismissLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
+
+    // Global Click to close Popover & Modals
     document.addEventListener("click", (e) => {
         if (!e.target.closest(".inline-citation") && !e.target.closest(".source-chip")) {
             citationPopover.classList.add("hidden");
@@ -86,8 +140,131 @@ function setupEventListeners() {
     });
 }
 
-// Check Backend Config
-async function checkConfig() {
+// Switch between Chat and Brochure Views
+function switchView(viewName) {
+    if (viewName === "chat") {
+        chatView.classList.add("active");
+        chatView.classList.remove("hidden");
+        brochureView.classList.add("hidden");
+        tabChat.classList.add("active");
+        tabBrochure.classList.remove("active");
+        chatInput.focus();
+    } else {
+        brochureView.classList.remove("hidden");
+        chatView.classList.add("hidden");
+        chatView.classList.remove("active");
+        tabBrochure.classList.add("active");
+        tabChat.classList.remove("active");
+    }
+}
+
+// Local Storage Session Management
+function loadChatSessions() {
+    try {
+        const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+        chatSessions = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        chatSessions = [];
+    }
+
+    if (chatSessions.length > 0) {
+        loadSession(chatSessions[0].id);
+    } else {
+        startNewSession();
+    }
+    renderHistorySidebar();
+}
+
+function saveChatSessions() {
+    try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
+    } catch (e) {
+        console.error("Storage error:", e);
+    }
+    renderHistorySidebar();
+}
+
+function startNewSession() {
+    currentSessionId = "session_" + Date.now();
+    const newSession = {
+        id: currentSessionId,
+        title: "New Consultation",
+        messages: [],
+        timestamp: new Date().toISOString()
+    };
+    chatSessions.unshift(newSession);
+    saveChatSessions();
+    loadSession(currentSessionId);
+}
+
+function loadSession(sessionId) {
+    currentSessionId = sessionId;
+    const session = chatSessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    chatMessages.innerHTML = "";
+    if (session.messages.length === 0) {
+        chatMessages.appendChild(welcomeScreen);
+        welcomeScreen.classList.remove("hidden");
+    } else {
+        welcomeScreen.classList.add("hidden");
+        session.messages.forEach(msg => {
+            appendMessage(msg.role === "user" ? "user" : "doctor", msg.content, msg.sources || [], false);
+        });
+    }
+    renderHistorySidebar();
+    scrollToBottom();
+}
+
+function clearCurrentSession() {
+    const session = chatSessions.find(s => s.id === currentSessionId);
+    if (session) {
+        session.messages = [];
+        session.title = "New Consultation";
+        saveChatSessions();
+        loadSession(currentSessionId);
+    }
+}
+
+function clearAllHistory() {
+    if (confirm("Are you sure you want to clear all consultation history?")) {
+        chatSessions = [];
+        localStorage.removeItem(SESSIONS_STORAGE_KEY);
+        startNewSession();
+    }
+}
+
+function renderHistorySidebar() {
+    historyList.innerHTML = "";
+    chatSessions.forEach(session => {
+        const item = document.createElement("div");
+        item.className = `history-item ${session.id === currentSessionId ? 'active' : ''}`;
+        item.innerHTML = `
+            <span class="history-title" title="${escapeHTML(session.title)}"><i class="fa-regular fa-message"></i> ${escapeHTML(session.title)}</span>
+            <button class="btn-delete-session" title="Delete consultation"><i class="fa-solid fa-trash-can"></i></button>
+        `;
+
+        item.querySelector(".history-title").addEventListener("click", () => {
+            switchView("chat");
+            loadSession(session.id);
+        });
+
+        item.querySelector(".btn-delete-session").addEventListener("click", (e) => {
+            e.stopPropagation();
+            chatSessions = chatSessions.filter(s => s.id !== session.id);
+            saveChatSessions();
+            if (currentSessionId === session.id) {
+                if (chatSessions.length > 0) loadSession(chatSessions[0].id);
+                else startNewSession();
+            }
+        });
+
+        historyList.appendChild(item);
+    });
+}
+
+// Backend Configuration Check
+async function checkBackendConfig() {
     try {
         const res = await fetch("/api/config-status");
         const data = await res.json();
@@ -97,14 +274,13 @@ async function checkConfig() {
             pineconeIndexInput.value = data.index_name || "ayurveda-index";
         }
         
-        // Fetch index stats
         const statsRes = await fetch("/api/index-stats");
         const statsData = await statsRes.json();
         if (statsData.exists && statsData.total_vector_count > 0) {
             corpusBadge.innerHTML = `<i class="fa-solid fa-check"></i> <span>${statsData.total_vector_count.toLocaleString()} Chunks Active</span>`;
         }
     } catch (err) {
-        console.error("Config check note:", err);
+        console.error("Config check notice:", err);
     }
 }
 
@@ -116,7 +292,7 @@ async function saveSettings(e) {
         pinecone_index_name: pineconeIndexInput.value.trim() || "ayurveda-index",
         gemini_api_key: geminiKeyInput.value.trim() || undefined
     };
-    
+
     try {
         const res = await fetch("/api/config", {
             method: "POST",
@@ -124,28 +300,16 @@ async function saveSettings(e) {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            alert("Settings updated successfully.");
+            alert("API configuration saved successfully.");
             settingsModal.classList.add("hidden");
-            checkConfig();
+            checkBackendConfig();
         } else {
             const err = await res.json();
             alert("Error: " + err.detail);
         }
     } catch (err) {
-        alert("Failed to save settings.");
+        alert("Failed to save settings: Network error.");
     }
-}
-
-// Reset Conversation
-function resetConversation() {
-    conversationHistory = [];
-    currentSources = [];
-    chatMessages.innerHTML = "";
-    chatMessages.appendChild(welcomeScreen);
-    welcomeScreen.classList.remove("hidden");
-    chatInput.value = "";
-    chatInput.style.height = "auto";
-    chatInput.focus();
 }
 
 // Handle Message Submission
@@ -154,20 +318,31 @@ async function handleSubmit(e) {
     const userText = chatInput.value.trim();
     if (!userText || isGenerating) return;
 
-    // Hide welcome hero on first message
     welcomeScreen.classList.add("hidden");
 
-    // Append User Message to UI
-    appendMessage("user", userText);
-    conversationHistory.push({ role: "user", content: userText });
+    // Retrieve active session
+    let session = chatSessions.find(s => s.id === currentSessionId);
+    if (!session) {
+        startNewSession();
+        session = chatSessions.find(s => s.id === currentSessionId);
+    }
 
-    // Reset input
+    // Set session title from first question
+    if (session.messages.length === 0) {
+        session.title = userText.length > 26 ? userText.substring(0, 24) + "..." : userText;
+    }
+
+    // Add user message to state & UI
+    session.messages.push({ role: "user", content: userText });
+    appendMessage("user", userText);
+    saveChatSessions();
+
     chatInput.value = "";
     chatInput.style.height = "auto";
     isGenerating = true;
     btnSend.disabled = true;
 
-    // Append Typing Indicator
+    // Add typing indicator
     const typingIndicatorEl = createTypingIndicator();
     chatMessages.appendChild(typingIndicatorEl);
     scrollToBottom();
@@ -177,7 +352,7 @@ async function handleSubmit(e) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                messages: conversationHistory,
+                messages: session.messages,
                 rerank: checkboxRerank.checked
             })
         });
@@ -187,14 +362,15 @@ async function handleSubmit(e) {
 
         if (response.ok) {
             currentSources = data.sources || [];
+            session.messages.push({ role: "model", content: data.reply, sources: data.sources });
             appendMessage("doctor", data.reply, data.sources);
-            conversationHistory.push({ role: "model", content: data.reply });
+            saveChatSessions();
         } else {
-            appendErrorMessage(data.detail || "Failed to generate doctor consultation. Please verify API keys in Settings.");
+            appendErrorMessage(data.detail || "Failed to generate doctor consultation. Please check your Gemini API key.");
         }
     } catch (err) {
         typingIndicatorEl.remove();
-        appendErrorMessage("Network error connecting to backend. Please ensure the server is running on http://127.0.0.1:8000.");
+        appendErrorMessage("Network error connecting to the Sushruta AI backend. Please verify your local server is running.");
     } finally {
         isGenerating = false;
         btnSend.disabled = false;
@@ -202,8 +378,8 @@ async function handleSubmit(e) {
     }
 }
 
-// Append Message Bubble to UI
-function appendMessage(sender, text, sources = []) {
+// Append Message UI Bubble
+function appendMessage(sender, text, sources = [], shouldScroll = true) {
     const row = document.createElement("div");
     row.className = `message-row ${sender}`;
 
@@ -219,8 +395,6 @@ function appendMessage(sender, text, sources = []) {
                 </div>
             </div>
         `;
-
-        // Attach event listeners for citation pills and source chips
         attachCitationListeners(row, sources);
     } else {
         row.innerHTML = `
@@ -231,10 +405,10 @@ function appendMessage(sender, text, sources = []) {
     }
 
     chatMessages.appendChild(row);
-    scrollToBottom();
+    if (shouldScroll) scrollToBottom();
 }
 
-// Render Sources Tray (Perplexity Style)
+// Render Perplexity Style Sources Tray
 function renderSourcesTray(sources) {
     const chipsHtml = sources.map((s, idx) => {
         const num = idx + 1;
@@ -249,7 +423,7 @@ function renderSourcesTray(sources) {
 
     return `
         <div class="sources-tray">
-            <div class="sources-label"><i class="fa-solid fa-book-bookmark"></i> Scriptural Sources (${sources.length})</div>
+            <div class="sources-label"><i class="fa-solid fa-book-bookmark"></i> Scriptural Citations (${sources.length})</div>
             <div class="sources-chips">
                 ${chipsHtml}
             </div>
@@ -257,22 +431,19 @@ function renderSourcesTray(sources) {
     `;
 }
 
-// Parse markdown and convert [1], [2] into interactive citation badges
+// Convert [1], [2] into clickable citation pills
 function formatMessageWithCitations(text, sources) {
-    // Replace [1], [2], [1][2] with interactive badge elements before markdown
     let processed = text.replace(/\[(\d+)\]/g, (match, p1) => {
         const idx = parseInt(p1, 10);
         return `<a class="inline-citation" data-source-idx="${idx - 1}" href="javascript:void(0);">[${idx}]</a>`;
     });
-
     return marked.parse(processed);
 }
 
-// Attach hover / click popovers to citations
+// Citation Popovers
 function attachCitationListeners(container, sources) {
     if (!sources || sources.length === 0) return;
 
-    // Attach to inline citations [1], [2]
     container.querySelectorAll(".inline-citation, .source-chip").forEach(el => {
         el.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -304,12 +475,12 @@ function createTypingIndicator() {
         <div class="message-avatar">
             <i class="fa-solid fa-leaf"></i>
         </div>
-        <div class="message-bubble" style="padding: 0.9rem 1.25rem;">
+        <div class="message-bubble" style="padding: 0.85rem 1.2rem;">
             <div class="typing-indicator">
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
-                <span style="margin-left: 8px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Consulting classical Ayurvedic scriptures...</span>
+                <span style="margin-left: 8px; font-size: 0.78rem; color: var(--text-muted); font-style: italic;">Consulting classical Ayurvedic scriptures...</span>
             </div>
         </div>
     `;
@@ -329,6 +500,40 @@ function appendErrorMessage(errorText) {
     `;
     chatMessages.appendChild(row);
     scrollToBottom();
+}
+
+function openLegalModal(type) {
+    if (type === "privacy") {
+        legalModalTitle.innerHTML = '<i class="fa-solid fa-user-shield"></i> Privacy Policy';
+        legalModalContent.innerHTML = `
+            <p><strong>Last Updated: 2026</strong></p>
+            <p>Sushruta AI is committed to protecting your personal health privacy:</p>
+            <ul style="margin-left: 1.25rem; margin-top: 0.5rem;">
+                <li><strong>Local-First Storage</strong>: Your consultation history is stored directly in your web browser's local storage. We do not sell or monetize personal health data.</li>
+                <li><strong>API Processing</strong>: Queries are processed securely via encrypted TLS connections to Google Gemini and Pinecone vector databases solely to generate your Ayurvedic remedy.</li>
+                <li><strong>No User Profiles Required</strong>: You can consult freely without creating an account or providing personally identifiable information.</li>
+            </ul>
+        `;
+    } else if (type === "terms") {
+        legalModalTitle.innerHTML = '<i class="fa-solid fa-file-contract"></i> Terms of Service';
+        legalModalContent.innerHTML = `
+            <p><strong>Educational & Wellness Purpose</strong></p>
+            <p>By using Sushruta AI, you acknowledge and agree to the following terms:</p>
+            <ul style="margin-left: 1.25rem; margin-top: 0.5rem;">
+                <li>The advice provided is compiled from traditional, historical Ayurvedic scriptures and reference compendia.</li>
+                <li>This platform is intended for informational and wellness exploration only and does not establish a formal physician-patient relationship.</li>
+                <li>Users are responsible for verifying any herb, spice, or formulation with their local certified health practitioner before intake.</li>
+            </ul>
+        `;
+    } else {
+        legalModalTitle.innerHTML = '<i class="fa-solid fa-notes-medical"></i> Medical Disclaimer';
+        legalModalContent.innerHTML = `
+            <p><strong>Important Health & Safety Notice:</strong></p>
+            <p>Sushruta AI is an AI-powered conversational reference tool grounded in Ayurvedic literature. It is not a replacement for professional clinical diagnosis, emergency treatment, or prescription medicine.</p>
+            <p style="margin-top: 0.75rem;">If you are experiencing severe pain, high fever, difficulty breathing, or a medical emergency, please seek immediate assistance at your nearest hospital or licensed physician.</p>
+        `;
+    }
+    legalModal.classList.remove("hidden");
 }
 
 function scrollToBottom() {
