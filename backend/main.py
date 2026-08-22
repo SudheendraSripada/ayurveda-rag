@@ -151,14 +151,8 @@ def index_stats():
 # Static files mounting
 os.makedirs("static", exist_ok=True)
 
-@app.get("/")
-def read_root():
-    static_index = os.path.join("static", "index.html")
-    if os.path.exists(static_index):
-        return FileResponse(static_index)
-    return JSONResponse(content={"message": "Sushruta Ayurveda RAG running. Frontend static/index.html not found."})
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/", StaticFiles(directory="static", html=True), name="root_static")
 
 if __name__ == "__main__":
     import uvicorn

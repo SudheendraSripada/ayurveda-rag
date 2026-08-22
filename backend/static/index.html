@@ -3,20 +3,281 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sushruta AI - Ayurvedic Physician & Scripture RAG</title>
+    <title>Sushruta AI - Ancient Ayurvedic Wisdom & Neural Scripture RAG</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-layout">
+
+    <!-- ========================================================= -->
+    <!-- VIEW 1: BEAUTIFUL FULL-PAGE LANDING PAGE (DEFAULT VIEW)   -->
+    <!-- ========================================================= -->
+    <div class="landing-page-view" id="landing-view">
+        <!-- Landing Navbar -->
+        <nav class="landing-nav">
+            <div class="landing-nav-container">
+                <div class="landing-brand">
+                    <i class="fa-solid fa-leaf brand-icon"></i>
+                    <div>
+                        <span class="landing-brand-title">Sushruta <span class="accent">AI</span></span>
+                        <span class="landing-brand-tag">Ayurvedic Physician RAG</span>
+                    </div>
+                </div>
+
+                <div class="landing-nav-links">
+                    <a href="#how-it-works" class="nav-link">How It Works</a>
+                    <a href="#pillars" class="nav-link">Clinical Pillars</a>
+                    <a href="#scriptures" class="nav-link">31 Scriptures</a>
+                    <a href="#faq" class="nav-link">FAQ</a>
+                </div>
+
+                <div class="landing-nav-actions">
+                    <!-- Language Selector Dropdown -->
+                    <div class="lang-selector-wrapper" title="Select Consultation Language">
+                        <i class="fa-solid fa-globe lang-icon"></i>
+                        <select id="landing-select-language" class="lang-select">
+                            <option value="English" selected>English</option>
+                            <option value="Telugu">తెలుగు (Telugu)</option>
+                            <option value="Hindi">हिन्दी (Hindi)</option>
+                            <option value="Sanskrit">संस्कृतम् (Sanskrit)</option>
+                            <option value="Tamil">தமிழ் (Tamil)</option>
+                            <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+                            <option value="Malayalam">മലയാളം (Malayalam)</option>
+                            <option value="Marathi">मराठी (Marathi)</option>
+                            <option value="Bengali">বাংলা (Bengali)</option>
+                            <option value="Spanish">Español (Spanish)</option>
+                            <option value="French">Français (French)</option>
+                            <option value="German">Deutsch (German)</option>
+                        </select>
+                    </div>
+
+                    <button id="btn-landing-start" class="btn-primary-glow">
+                        <span>Start Consultation</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Landing Hero Section -->
+        <header class="landing-hero">
+            <div class="hero-badge">
+                <i class="fa-solid fa-sparkles"></i> 5,000 Years of Vedic Wisdom &bull; Grounded in 31 Scriptures
+            </div>
+            <h1 class="hero-title">
+                Ancient Ayurvedic Healing,<br>
+                <span class="gradient-text">Prescribed by Neural Intelligence.</span>
+            </h1>
+            <p class="hero-subtitle">
+                Consult <strong>Sage Dhanvantari</strong> — an AI Ayurvedic physician grounded in classical digitized treatises (Charaka Samhita, Sushruta Samhita, Ashtanga Hridaya, and traditional Telugu Veda Granthas). Receive root-cause Tridosha diagnoses and verified home remedies with Perplexity-style scriptural citations.
+            </p>
+
+            <div class="hero-cta-group">
+                <button id="btn-hero-consult" class="btn-hero-primary">
+                    <i class="fa-solid fa-comment-medical"></i> Start Free Consultation
+                </button>
+                <a href="#how-it-works" class="btn-hero-secondary">
+                    <i class="fa-solid fa-circle-play"></i> How RAG Works
+                </a>
+            </div>
+
+            <!-- Quick Start Consultation Cards -->
+            <div class="hero-prompts-container">
+                <span class="prompts-label"><i class="fa-solid fa-bolt"></i> Popular Inquiries (Click to ask Sage Dhanvantari):</span>
+                <div class="hero-prompts-grid">
+                    <div class="hero-prompt-card" data-prompt="I am suffering from severe sinusitis, blocked nose, and morning headache. What Ayurvedic remedies, steam inhalations, and herbs do the scriptures prescribe?">
+                        <i class="fa-solid fa-head-side-cough prompt-icon"></i>
+                        <div>
+                            <strong>Sinusitis & Headache</strong>
+                            <p>Steam inhalation, Anu Taila & Kapha relief</p>
+                        </div>
+                    </div>
+                    <div class="hero-prompt-card" data-prompt="I have severe acid reflux, burning sensation in the chest, and indigestion after meals. Explain the Pitta dosha root cause and remedies.">
+                        <i class="fa-solid fa-fire-flame-curved prompt-icon"></i>
+                        <div>
+                            <strong>Acid Reflux & Pitta</strong>
+                            <p>Cooling herbs, Amla & Agni balance</p>
+                        </div>
+                    </div>
+                    <div class="hero-prompt-card" data-prompt="I suffer from joint stiffness, knee pain, and cracking sounds in the morning. What Vata-pacifying oils and decoctions should I use?">
+                        <i class="fa-solid fa-bone prompt-icon"></i>
+                        <div>
+                            <strong>Joint Pain & Vata</strong>
+                            <p>Mahanarayana oil & Guggulu decoctions</p>
+                        </div>
+                    </div>
+                    <div class="hero-prompt-card" data-prompt="What Ayurvedic formulations and hair oils (like Bhringraj or Amla) are recommended for premature graying and hair fall?">
+                        <i class="fa-solid fa-spa prompt-icon"></i>
+                        <div>
+                            <strong>Hair & Scalp Health</strong>
+                            <p>Bhringraj, Brahmi & herbal hair tonics</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Bar -->
+        <section class="landing-stats-bar">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number">31</span>
+                    <span class="stat-label">Classical Scriptures Digitized</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Grounded & Verified Citations</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">12+</span>
+                    <span class="stat-label">Languages Supported</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">0$</span>
+                    <span class="stat-label">Free & Privacy-First</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="landing-section" id="how-it-works">
+            <div class="section-badge">Architecture</div>
+            <h2 class="section-title">How Sushruta AI Works</h2>
+            <p class="section-sub">A 3-step neural pipeline combining vector semantic retrieval with clinical physician synthesis.</p>
+
+            <div class="landing-steps-grid">
+                <div class="landing-step-card">
+                    <div class="step-badge">Step 1</div>
+                    <div class="step-icon-box"><i class="fa-solid fa-book-bookmark"></i></div>
+                    <h3>Classical Scripture Corpus</h3>
+                    <p>31 volumes of Sanskrit and Telugu Ayurvedic treatises are indexed into semantic, searchable passages.</p>
+                </div>
+                <div class="landing-step-card">
+                    <div class="step-badge">Step 2</div>
+                    <div class="step-icon-box"><i class="fa-solid fa-network-wired"></i></div>
+                    <h3>Pinecone Neural RAG</h3>
+                    <p>When you describe your symptoms, vector search and neural reranking (bge-reranker) retrieve the most relevant classical passages.</p>
+                </div>
+                <div class="landing-step-card">
+                    <div class="step-badge">Step 3</div>
+                    <div class="step-icon-box"><i class="fa-solid fa-user-doctor"></i></div>
+                    <h3>Physician Synthesis</h3>
+                    <p>Sage Dhanvantari synthesizes a structured remedy with Dosha analysis, kitchen ingredients, dosages, and verifiable Perplexity-style citations.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Clinical Pillars Section -->
+        <section class="landing-section dark-alt" id="pillars">
+            <div class="section-badge">Principles</div>
+            <h2 class="section-title">Core Clinical Principles</h2>
+            <p class="section-sub">Root-cause healing that treats the person, not just the symptom.</p>
+
+            <div class="landing-pillars-grid">
+                <div class="landing-pillar-card">
+                    <i class="fa-solid fa-yin-yang pillar-icon"></i>
+                    <h4>Tridosha Root-Cause Diagnosis</h4>
+                    <p>Assesses Vata (movement/nervous system), Pitta (metabolism/digestion), and Kapha (structure/immunity) imbalances.</p>
+                </div>
+                <div class="landing-pillar-card">
+                    <i class="fa-solid fa-mortar-pestle pillar-icon"></i>
+                    <h4>Accessible Kitchen Formulations</h4>
+                    <p>Prescribes safe, authentic home remedies using turmeric, ginger, black pepper, cumin, ghee, and herbal decoctions.</p>
+                </div>
+                <div class="landing-pillar-card">
+                    <i class="fa-solid fa-quote-left pillar-icon"></i>
+                    <h4>Verifiable Page Citations</h4>
+                    <p>Every single herb and dosage is linked to its source book and page number with clickable excerpt popovers.</p>
+                </div>
+                <div class="landing-pillar-card">
+                    <i class="fa-solid fa-shield-halved pillar-icon"></i>
+                    <h4>Zero-Tracking Privacy</h4>
+                    <p>Your health questions and chat history are saved in your browser local storage with zero cloud profiling or data selling.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 31 Scriptures Showcase Section -->
+        <section class="landing-section" id="scriptures">
+            <div class="section-badge">Knowledge Base</div>
+            <h2 class="section-title">31 Digitized Classical Treatises</h2>
+            <p class="section-sub">Comprehensive compendia spanning centuries of traditional medical wisdom.</p>
+
+            <div class="scriptures-chips-grid">
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ వనమూలికా వేదం</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ ఆహార వేదం</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ సౌందర్య వేదం</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> చరక సంహిత (విమాన, శారీర, కల్ప, చికిత్స)</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అష్టాంగ హృదయము (సూత్ర, ఉత్తర, చికిత్స)</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> వంట ఇల్లే వైద్యశాల (Kitchen Pharmacy)</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> ప్రకృతి గృహ వైద్యం (Nature Home Remedies)</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> గృహౌషధ వనము (Medicinal Herbs Garden)</div>
+                <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం వార్షిక సంచికలు (2008-2015)</div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="landing-section dark-alt" id="faq">
+            <div class="section-badge">FAQ</div>
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div class="faq-container">
+                <div class="faq-card">
+                    <h4><i class="fa-regular fa-circle-question"></i> Is Sushruta AI a replacement for a doctor?</h4>
+                    <p>No. Sushruta AI is an educational RAG reference tool grounded in authentic Ayurvedic literature. For emergency symptoms, acute conditions, or prescription medicines, always consult a licensed medical professional.</p>
+                </div>
+                <div class="faq-card">
+                    <h4><i class="fa-regular fa-circle-question"></i> How do citations work?</h4>
+                    <p>Whenever Sage Dhanvantari recommends a formulation or herb from the 31 books, a numbered badge like [1] or [2] appears. Clicking it displays the original book title and page excerpt.</p>
+                </div>
+                <div class="faq-card">
+                    <h4><i class="fa-regular fa-circle-question"></i> Is my consultation data private?</h4>
+                    <p>Yes. Your conversation history is saved exclusively in your browser localStorage. No personal consultation logs are sold or stored permanently on third-party tracking databases.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom CTA Banner -->
+        <section class="landing-cta-banner">
+            <h2>Ready to Begin Your Healing Journey?</h2>
+            <p>Experience authentic, root-cause Ayurvedic consultations in your preferred language.</p>
+            <button id="btn-bottom-start" class="btn-hero-primary">
+                <i class="fa-solid fa-comment-medical"></i> Start Consultation Now
+            </button>
+        </section>
+
+        <!-- Landing Footer -->
+        <footer class="landing-footer">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <i class="fa-solid fa-leaf brand-icon"></i>
+                    <span>Sushruta AI</span>
+                </div>
+                <div class="footer-links">
+                    <button class="btn-legal-link" id="btn-footer-privacy">Privacy Policy</button>
+                    <span>&bull;</span>
+                    <button class="btn-legal-link" id="btn-footer-terms">Terms of Service</button>
+                    <span>&bull;</span>
+                    <button class="btn-legal-link" id="btn-footer-disclaimer">Medical Disclaimer</button>
+                    <span>&bull;</span>
+                    <a href="https://github.com/SudheendraSripada/ayurveda-rag" target="_blank" class="footer-github"><i class="fa-brands fa-github"></i> GitHub</a>
+                </div>
+                <p class="footer-copy">&copy; 2026 Sushruta AI. Grounded in traditional classical scriptures for wellness & longevity.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- VIEW 2: CHATGPT-STYLE CONSULTATION CHAT (INTERACTIVE APP) -->
+    <!-- ========================================================= -->
+    <div class="app-layout hidden" id="chat-app-view">
         <!-- Collapsible Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-top">
@@ -32,21 +293,21 @@
                 </button>
             </div>
 
+            <!-- Return to Landing Page Button -->
+            <button id="btn-return-home" class="home-nav-btn" title="Return to Landing Page">
+                <i class="fa-solid fa-house"></i>
+                <span>Home &amp; About</span>
+            </button>
+
             <button id="btn-new-chat" class="new-chat-btn" title="Start New Consultation">
                 <i class="fa-solid fa-plus"></i>
                 <span>New Consultation</span>
             </button>
 
-            <!-- Navigation Mode Switcher -->
-            <div class="nav-tabs">
-                <button id="tab-chat" class="nav-tab active"><i class="fa-solid fa-comment-medical"></i> Consultation</button>
-                <button id="tab-brochure" class="nav-tab"><i class="fa-solid fa-book-open"></i> How It Works</button>
-            </div>
-
             <!-- Recent Chat History Section (Stored in localStorage) -->
             <div class="sidebar-section" id="sidebar-history-section">
                 <div class="section-header">
-                    <span class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent Consultations</span>
+                    <span class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Consultations</span>
                     <button id="btn-clear-all-history" class="text-btn" title="Clear all chat history">Clear</button>
                 </div>
                 <div class="history-list" id="history-list">
@@ -56,7 +317,7 @@
 
             <!-- Suggested Quick Topics -->
             <div class="sidebar-section">
-                <span class="section-title"><i class="fa-solid fa-sparkles"></i> Popular Topics</span>
+                <span class="section-title"><i class="fa-solid fa-sparkles"></i> Quick Inquiries</span>
                 <div class="quick-prompts-list">
                     <button class="prompt-chip" data-prompt="I am suffering from severe sinusitis, blocked nose, and morning headache. What Ayurvedic remedies, steam inhalations, and herbs do the scriptures prescribe?">
                         <i class="fa-solid fa-head-side-cough"></i> Sinusitis & Headache
@@ -85,7 +346,7 @@
             </div>
         </aside>
 
-        <!-- Main Content Area -->
+        <!-- Main Chat Area -->
         <main class="main-content">
             <!-- Top Header Bar -->
             <header class="app-header">
@@ -109,7 +370,7 @@
                     <!-- Language Selection Dropdown -->
                     <div class="lang-selector-wrapper" title="Select Response Language">
                         <i class="fa-solid fa-globe lang-icon"></i>
-                        <select id="select-language" class="lang-select">
+                        <select id="chat-select-language" class="lang-select">
                             <option value="English" selected>English</option>
                             <option value="Telugu">తెలుగు (Telugu)</option>
                             <option value="Hindi">हिन्दी (Hindi)</option>
@@ -130,12 +391,13 @@
                         <span class="toggle-track"></span>
                         <span class="toggle-text"><i class="fa-solid fa-layer-group"></i> Rerank</span>
                     </label>
-                    <button id="btn-header-brochure" class="header-link-btn"><i class="fa-solid fa-circle-info"></i> About</button>
+
+                    <button id="btn-header-home" class="header-link-btn" title="Back to Landing Page"><i class="fa-solid fa-house"></i> Home</button>
                     <button id="btn-clear-chat" class="icon-btn" title="Clear Current Chat"><i class="fa-solid fa-rotate-right"></i></button>
                 </div>
             </header>
 
-            <!-- VIEW 1: Chat Consultation Stream (ChatGPT Style) -->
+            <!-- Chat Stream Area -->
             <div class="view-container active" id="chat-view">
                 <div class="chat-messages" id="chat-messages">
                     <!-- Welcome Hero Card -->
@@ -186,86 +448,12 @@
                     </div>
                 </div>
             </div>
-
-            <!-- VIEW 2: Brochure / Landing Page (How It Works & Policies) -->
-            <div class="view-container hidden" id="brochure-view">
-                <div class="brochure-content">
-                    <!-- Hero Section -->
-                    <section class="brochure-hero">
-                        <span class="pill-badge"><i class="fa-solid fa-leaf"></i> Ancient Wisdom &bull; Neural Intelligence</span>
-                        <h1>Authentic Ayurvedic Healing with Verifiable Scriptural Intelligence</h1>
-                        <p class="hero-desc">Sushruta AI is a specialized Retrieval-Augmented Generation (RAG) platform that bridges 5,000-year-old classical Ayurvedic treatises with cutting-edge vector search and Gemini generative intelligence.</p>
-                        <button id="btn-try-consultation" class="cta-btn"><i class="fa-solid fa-comment-medical"></i> Start Consultation Now</button>
-                    </section>
-
-                    <!-- How It Works Section -->
-                    <section class="brochure-section">
-                        <h2 class="section-heading">How Sushruta AI Works</h2>
-                        <div class="steps-grid">
-                            <div class="step-card">
-                                <div class="step-num">01</div>
-                                <i class="fa-solid fa-book-bookmark step-icon"></i>
-                                <h3>31 Classical Scriptures</h3>
-                                <p>Digitized classical compendia (Charaka, Sushruta, Ashtanga Hridaya, Swadesi Veda granthas) chunked into semantic passages.</p>
-                            </div>
-                            <div class="step-card">
-                                <div class="step-num">02</div>
-                                <i class="fa-solid fa-network-wired step-icon"></i>
-                                <h3>Pinecone Neural RAG</h3>
-                                <p>Integrated vector embeddings with llama-text-embed-v2 and neural reranking (bge-reranker) to pinpoint relevant passages.</p>
-                            </div>
-                            <div class="step-card">
-                                <div class="step-num">03</div>
-                                <i class="fa-solid fa-user-doctor step-icon"></i>
-                                <h3>Sage Dhanvantari Physician</h3>
-                                <p>Gemini AI acts as a compassionate physician, analyzing Dosha imbalances and synthesizing step-by-step remedies with Perplexity-style citations in your chosen language.</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Clinical Pillars -->
-                    <section class="brochure-section">
-                        <h2 class="section-heading">Core Clinical Principles</h2>
-                        <div class="pillars-grid">
-                            <div class="pillar-card">
-                                <i class="fa-solid fa-yin-yang"></i>
-                                <h4>Tridosha Root-Cause Diagnosis</h4>
-                                <p>Every symptom is analyzed across Vata, Pitta, and Kapha imbalances rather than superficial symptom masking.</p>
-                            </div>
-                            <div class="pillar-card">
-                                <i class="fa-solid fa-jar"></i>
-                                <h4>Accessible Kitchen Formulations</h4>
-                                <p>Remedies leverage authentic kitchen spices, decoctions (Kashayams), herbal powders (Churnas), and medicated oils.</p>
-                            </div>
-                            <div class="pillar-card">
-                                <i class="fa-solid fa-quote-left"></i>
-                                <h4>Verifiable Book Citations</h4>
-                                <p>Every formulation is tagged with exact source book and chapter/page numbers so you can verify the original Sanskrit/Telugu text.</p>
-                            </div>
-                            <div class="pillar-card">
-                                <i class="fa-solid fa-lock"></i>
-                                <h4>Privacy-First Local Storage</h4>
-                                <p>Your consultation history is stored privately in your own browser localStorage with zero tracking or data sharing.</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Brochure Footer with Legal Links -->
-                    <footer class="brochure-footer">
-                        <div class="footer-links">
-                            <button id="btn-open-privacy" class="footer-link">Privacy Policy</button>
-                            <span>&bull;</span>
-                            <button id="btn-open-terms" class="footer-link">Terms of Service</button>
-                            <span>&bull;</span>
-                            <button id="btn-open-disclaimer" class="footer-link">Medical Disclaimer</button>
-                        </div>
-                        <p class="footer-copy">&copy; 2026 Sushruta AI. All remedies are compiled from digitized traditional Ayurveda scriptures.</p>
-                    </footer>
-                </div>
-            </div>
         </main>
     </div>
 
+    <!-- ========================================================= -->
+    <!-- MODALS & POPOVERS (ISOLATED)                              -->
+    <!-- ========================================================= -->
     <!-- Settings Modal -->
     <div class="modal-overlay hidden" id="settings-modal">
         <div class="modal-card">
@@ -319,6 +507,6 @@
         <p class="citation-body" id="popover-excerpt">Passage excerpt...</p>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

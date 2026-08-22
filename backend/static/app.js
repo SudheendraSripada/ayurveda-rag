@@ -8,25 +8,31 @@ let currentSources = [];
 const SESSIONS_STORAGE_KEY = "sushruta_chat_sessions_v1";
 const LANGUAGE_STORAGE_KEY = "sushruta_selected_language_v1";
 
-// DOM Elements
+// Main Views
+const landingView = document.getElementById("landing-view");
+const chatAppView = document.getElementById("chat-app-view");
+
+// Navigation & Trigger Buttons
+const btnLandingStart = document.getElementById("btn-landing-start");
+const btnHeroConsult = document.getElementById("btn-hero-consult");
+const btnBottomStart = document.getElementById("btn-bottom-start");
+const btnReturnHome = document.getElementById("btn-return-home");
+const btnHeaderHome = document.getElementById("btn-header-home");
+
+// Language Dropdowns (Both Landing & Chat synced)
+const landingSelectLang = document.getElementById("landing-select-language");
+const chatSelectLang = document.getElementById("chat-select-language");
+
+// Sidebar & Chat Elements
 const sidebar = document.getElementById("sidebar");
 const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
 const btnCollapseSidebar = document.getElementById("btn-collapse-sidebar");
-
-const tabChat = document.getElementById("tab-chat");
-const tabBrochure = document.getElementById("tab-brochure");
-const btnHeaderBrochure = document.getElementById("btn-header-brochure");
-const btnTryConsultation = document.getElementById("btn-try-consultation");
-
-const chatView = document.getElementById("chat-view");
-const brochureView = document.getElementById("brochure-view");
 
 const chatMessages = document.getElementById("chat-messages");
 const welcomeScreen = document.getElementById("welcome-screen");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const btnSend = document.getElementById("btn-send");
-const selectLanguage = document.getElementById("select-language");
 const checkboxRerank = document.getElementById("checkbox-rerank");
 const btnNewChat = document.getElementById("btn-new-chat");
 const btnClearChat = document.getElementById("btn-clear-chat");
@@ -50,9 +56,9 @@ const legalModalTitle = document.getElementById("legal-modal-title");
 const legalModalContent = document.getElementById("legal-modal-content");
 const btnCloseLegal = document.getElementById("btn-close-legal");
 const btnDismissLegal = document.getElementById("btn-dismiss-legal");
-const btnOpenPrivacy = document.getElementById("btn-open-privacy");
-const btnOpenTerms = document.getElementById("btn-open-terms");
-const btnOpenDisclaimer = document.getElementById("btn-open-disclaimer");
+const btnFooterPrivacy = document.getElementById("btn-footer-privacy");
+const btnFooterTerms = document.getElementById("btn-footer-terms");
+const btnFooterDisclaimer = document.getElementById("btn-footer-disclaimer");
 
 // Popover Elements
 const citationPopover = document.getElementById("citation-popover");
@@ -66,9 +72,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Restore Saved Language
     const savedLang = localStorage.getItem(LANGUAGE_STORAGE_KEY) || "English";
-    if (selectLanguage) {
-        selectLanguage.value = savedLang;
-    }
+    if (landingSelectLang) landingSelectLang.value = savedLang;
+    if (chatSelectLang) chatSelectLang.value = savedLang;
     
     loadChatSessions();
     setupEventListeners();
@@ -77,32 +82,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Event Listeners
 function setupEventListeners() {
-    // Sidebar Collapse / Expand
-    btnToggleSidebar.addEventListener("click", () => {
-        sidebar.classList.toggle("collapsed");
+    // 1. Landing Page to Chat View Transitions
+    const startConsultationButtons = [btnLandingStart, btnHeroConsult, btnBottomStart];
+    startConsultationButtons.forEach(btn => {
+        if (btn) {
+            btn.addEventListener("click", () => openChatView());
+        }
     });
 
-    btnCollapseSidebar.addEventListener("click", () => {
-        sidebar.classList.add("collapsed");
-    });
+    // 2. Return to Landing Page
+    if (btnReturnHome) btnReturnHome.addEventListener("click", () => openLandingView());
+    if (btnHeaderHome) btnHeaderHome.addEventListener("click", () => openLandingView());
 
-    // Language Selector change
-    if (selectLanguage) {
-        selectLanguage.addEventListener("change", () => {
-            localStorage.setItem(LANGUAGE_STORAGE_KEY, selectLanguage.value);
+    // 3. Sync Language Selectors
+    if (landingSelectLang) {
+        landingSelectLang.addEventListener("change", () => {
+            const lang = landingSelectLang.value;
+            localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+            if (chatSelectLang) chatSelectLang.value = lang;
         });
     }
 
-    // View Switching
-    tabChat.addEventListener("click", () => switchView("chat"));
-    tabBrochure.addEventListener("click", () => switchView("brochure"));
-    btnHeaderBrochure.addEventListener("click", () => switchView("brochure"));
-    btnTryConsultation.addEventListener("click", () => switchView("chat"));
+    if (chatSelectLang) {
+        chatSelectLang.addEventListener("change", () => {
+            const lang = chatSelectLang.value;
+            localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+            if (landingSelectLang) landingSelectLang.value = lang;
+        });
+    }
 
-    // Chat Form Submission
+    // 4. Sidebar Collapse / Expand
+    if (btnToggleSidebar) {
+        btnToggleSidebar.addEventListener("click", () => {
+            sidebar.classList.toggle("collapsed");
+        });
+    }
+
+    if (btnCollapseSidebar) {
+        btnCollapseSidebar.addEventListener("click", () => {
+            sidebar.classList.add("collapsed");
+        });
+    }
+
+    // 5. Chat Form Submission
     chatForm.addEventListener("submit", handleSubmit);
 
-    // Textarea Auto-expand & Enter to Send
+    // 6. Textarea Auto-expand & Enter to Send
     chatInput.addEventListener("input", () => {
         chatInput.style.height = "auto";
         chatInput.style.height = Math.min(chatInput.scrollHeight, 180) + "px";
@@ -117,17 +142,17 @@ function setupEventListeners() {
         }
     });
 
-    // New Chat & Clear Current
+    // 7. New Chat & Clear Current
     btnNewChat.addEventListener("click", () => startNewSession());
     btnClearChat.addEventListener("click", () => clearCurrentSession());
     btnClearAllHistory.addEventListener("click", clearAllHistory);
 
-    // Quick Topic Chips & Cards
+    // 8. Quick Prompt Cards (Works on both Landing & Chat views)
     document.querySelectorAll("[data-prompt]").forEach(el => {
         el.addEventListener("click", () => {
             const promptText = el.getAttribute("data-prompt");
             if (promptText) {
-                switchView("chat");
+                openChatView();
                 chatInput.value = promptText;
                 chatInput.dispatchEvent(new Event("input"));
                 chatForm.dispatchEvent(new Event("submit"));
@@ -135,20 +160,20 @@ function setupEventListeners() {
         });
     });
 
-    // Settings Modal
+    // 9. Settings Modal
     btnSettingsModal.addEventListener("click", () => settingsModal.classList.remove("hidden"));
     btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     btnCancelSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     settingsForm.addEventListener("submit", saveSettings);
 
-    // Legal Modals
-    btnOpenPrivacy.addEventListener("click", () => openLegalModal("privacy"));
-    btnOpenTerms.addEventListener("click", () => openLegalModal("terms"));
-    btnOpenDisclaimer.addEventListener("click", () => openLegalModal("disclaimer"));
+    // 10. Legal Modals from Footer
+    if (btnFooterPrivacy) btnFooterPrivacy.addEventListener("click", () => openLegalModal("privacy"));
+    if (btnFooterTerms) btnFooterTerms.addEventListener("click", () => openLegalModal("terms"));
+    if (btnFooterDisclaimer) btnFooterDisclaimer.addEventListener("click", () => openLegalModal("disclaimer"));
     btnCloseLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
     btnDismissLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
 
-    // Global Click to close Popover & Modals
+    // 11. Global Click to close Popover & Modals
     document.addEventListener("click", (e) => {
         if (!e.target.closest(".inline-citation") && !e.target.closest(".source-chip")) {
             citationPopover.classList.add("hidden");
@@ -156,22 +181,18 @@ function setupEventListeners() {
     });
 }
 
-// Switch between Chat and Brochure Views
-function switchView(viewName) {
-    if (viewName === "chat") {
-        chatView.classList.add("active");
-        chatView.classList.remove("hidden");
-        brochureView.classList.add("hidden");
-        tabChat.classList.add("active");
-        tabBrochure.classList.remove("active");
-        chatInput.focus();
-    } else {
-        brochureView.classList.remove("hidden");
-        chatView.classList.add("hidden");
-        chatView.classList.remove("active");
-        tabBrochure.classList.add("active");
-        tabChat.classList.remove("active");
-    }
+// View Switching Functions
+function openChatView() {
+    landingView.classList.add("hidden");
+    chatAppView.classList.remove("hidden");
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    chatInput.focus();
+}
+
+function openLandingView() {
+    chatAppView.classList.add("hidden");
+    landingView.classList.remove("hidden");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Local Storage Session Management
@@ -261,7 +282,7 @@ function renderHistorySidebar() {
         `;
 
         item.querySelector(".history-title").addEventListener("click", () => {
-            switchView("chat");
+            openChatView();
             loadSession(session.id);
         });
 
@@ -363,7 +384,7 @@ async function handleSubmit(e) {
     chatMessages.appendChild(typingIndicatorEl);
     scrollToBottom();
 
-    const currentLang = selectLanguage ? selectLanguage.value : "English";
+    const currentLang = chatSelectLang ? chatSelectLang.value : "English";
 
     try {
         const response = await fetch("/api/chat", {
