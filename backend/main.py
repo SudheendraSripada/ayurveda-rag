@@ -35,6 +35,7 @@ class ChatMessage(BaseModel):
 
 class ChatPayload(BaseModel):
     messages: List[ChatMessage]
+    language: Optional[str] = "English"
     rerank: Optional[bool] = True
 
 class ConfigPayload(BaseModel):
@@ -76,7 +77,7 @@ def update_config(payload: ConfigPayload):
 
 @app.post("/api/chat")
 def handle_chat(payload: ChatPayload):
-    """Multi-turn RAG chat with scriptural retrieval & Perplexity-style citations."""
+    """Multi-turn RAG chat with scriptural retrieval & Perplexity-style citations in chosen language."""
     load_dotenv(override=True)
     pinecone_key = os.getenv("PINECONE_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
@@ -89,12 +90,13 @@ def handle_chat(payload: ChatPayload):
         raise HTTPException(status_code=400, detail="No messages provided.")
         
     latest_user_message = payload.messages[-1].content
+    selected_language = payload.language or "English"
     
     # 1. Retrieve scriptural context from Pinecone if configured
     passages = []
     if pinecone_key and index_name:
         try:
-            logger.info(f"Retrieving scriptures from Pinecone for query: '{latest_user_message[:60]}...'")
+            logger.info(f"Retrieving scriptures from Pinecone for query: '{latest_user_message[:60]}...' in lang: {selected_language}")
             reranker = "bge-reranker-v2-m3" if payload.rerank else None
             
             passages = search_index(
@@ -117,12 +119,14 @@ def handle_chat(payload: ChatPayload):
         reply_text = generate_chat_remedy(
             api_key=gemini_key,
             messages=messages_dict,
-            context_passages=passages
+            context_passages=passages,
+            language=selected_language
         )
         
         return {
             "reply": reply_text,
-            "sources": passages
+            "sources": passages,
+            "language": selected_language
         }
     except Exception as e:
         logger.error(f"Chat generation error: {str(e)}")

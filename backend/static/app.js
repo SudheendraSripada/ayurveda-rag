@@ -6,6 +6,7 @@ let currentSources = [];
 
 // Storage Keys
 const SESSIONS_STORAGE_KEY = "sushruta_chat_sessions_v1";
+const LANGUAGE_STORAGE_KEY = "sushruta_selected_language_v1";
 
 // DOM Elements
 const sidebar = document.getElementById("sidebar");
@@ -25,6 +26,7 @@ const welcomeScreen = document.getElementById("welcome-screen");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const btnSend = document.getElementById("btn-send");
+const selectLanguage = document.getElementById("select-language");
 const checkboxRerank = document.getElementById("checkbox-rerank");
 const btnNewChat = document.getElementById("btn-new-chat");
 const btnClearChat = document.getElementById("btn-clear-chat");
@@ -61,6 +63,13 @@ const popoverExcerpt = document.getElementById("popover-excerpt");
 // Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
     marked.setOptions({ breaks: true, gfm: true });
+    
+    // Restore Saved Language
+    const savedLang = localStorage.getItem(LANGUAGE_STORAGE_KEY) || "English";
+    if (selectLanguage) {
+        selectLanguage.value = savedLang;
+    }
+    
     loadChatSessions();
     setupEventListeners();
     checkBackendConfig();
@@ -76,6 +85,13 @@ function setupEventListeners() {
     btnCollapseSidebar.addEventListener("click", () => {
         sidebar.classList.add("collapsed");
     });
+
+    // Language Selector change
+    if (selectLanguage) {
+        selectLanguage.addEventListener("change", () => {
+            localStorage.setItem(LANGUAGE_STORAGE_KEY, selectLanguage.value);
+        });
+    }
 
     // View Switching
     tabChat.addEventListener("click", () => switchView("chat"));
@@ -347,12 +363,15 @@ async function handleSubmit(e) {
     chatMessages.appendChild(typingIndicatorEl);
     scrollToBottom();
 
+    const currentLang = selectLanguage ? selectLanguage.value : "English";
+
     try {
         const response = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 messages: session.messages,
+                language: currentLang,
                 rerank: checkboxRerank.checked
             })
         });

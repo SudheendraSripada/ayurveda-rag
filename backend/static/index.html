@@ -106,10 +106,29 @@
                 </div>
 
                 <div class="header-right">
+                    <!-- Language Selection Dropdown -->
+                    <div class="lang-selector-wrapper" title="Select Response Language">
+                        <i class="fa-solid fa-globe lang-icon"></i>
+                        <select id="select-language" class="lang-select">
+                            <option value="English" selected>English</option>
+                            <option value="Telugu">తెలుగు (Telugu)</option>
+                            <option value="Hindi">हिन्दी (Hindi)</option>
+                            <option value="Sanskrit">संस्कृतम् (Sanskrit)</option>
+                            <option value="Tamil">தமிழ் (Tamil)</option>
+                            <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+                            <option value="Malayalam">മലയാളം (Malayalam)</option>
+                            <option value="Marathi">मराठी (Marathi)</option>
+                            <option value="Bengali">বাংলা (Bengali)</option>
+                            <option value="Spanish">Español (Spanish)</option>
+                            <option value="French">Français (French)</option>
+                            <option value="German">Deutsch (German)</option>
+                        </select>
+                    </div>
+
                     <label class="rerank-toggle" title="Enable Pinecone bge-reranker-v2-m3 for maximum scriptural relevance">
                         <input type="checkbox" id="checkbox-rerank" checked>
                         <span class="toggle-track"></span>
-                        <span class="toggle-text"><i class="fa-solid fa-layer-group"></i> Neural Reranking</span>
+                        <span class="toggle-text"><i class="fa-solid fa-layer-group"></i> Rerank</span>
                     </label>
                     <button id="btn-header-brochure" class="header-link-btn"><i class="fa-solid fa-circle-info"></i> About</button>
                     <button id="btn-clear-chat" class="icon-btn" title="Clear Current Chat"><i class="fa-solid fa-rotate-right"></i></button>
@@ -199,7 +218,7 @@
                                 <div class="step-num">03</div>
                                 <i class="fa-solid fa-user-doctor step-icon"></i>
                                 <h3>Sage Dhanvantari Physician</h3>
-                                <p>Gemini AI acts as a compassionate physician, analyzing Dosha imbalances and synthesizing step-by-step remedies with Perplexity-style citations.</p>
+                                <p>Gemini AI acts as a compassionate physician, analyzing Dosha imbalances and synthesizing step-by-step remedies with Perplexity-style citations in your chosen language.</p>
                             </div>
                         </div>
                     </section>

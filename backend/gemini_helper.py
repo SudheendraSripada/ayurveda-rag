@@ -44,9 +44,10 @@ def generate_chat_remedy(
     api_key: str, 
     messages: list[dict], 
     context_passages: list[dict], 
+    language: str = "English",
     model_name: str = "gemini-3.6-flash"
 ) -> str:
-    """Generate multi-turn Ayurvedic consultation response using Gemini with retrieved context."""
+    """Generate multi-turn Ayurvedic consultation response in selected language using Gemini with retrieved context."""
     client = genai.Client(api_key=api_key)
     
     # Construct context string with passage numbers for citations
@@ -62,6 +63,17 @@ def generate_chat_remedy(
     else:
         context_str = "=== SCRIPTURAL PASSAGES FROM AYURVEDIC BOOKS ===\nNo direct passages found in the uploaded index.\n\n"
         
+    # Language instruction directive
+    lang_directive = ""
+    if language and language.strip().lower() != "english":
+        lang_directive = (
+            f"\n=== MANDATORY LANGUAGE DIRECTIVE ===\n"
+            f"You MUST generate your entire consultation and remedy response in {language}. "
+            f"Write in natural, fluent {language} with traditional Ayurvedic terms, while preserving inline numerical citations like [1], [2].\n\n"
+        )
+    else:
+        lang_directive = "\n=== MANDATORY LANGUAGE DIRECTIVE ===\nRespond in fluent English while preserving inline citations like [1], [2].\n\n"
+        
     formatted_contents = []
     
     for i, msg in enumerate(messages):
@@ -69,13 +81,13 @@ def generate_chat_remedy(
         content = msg.get("content", "")
         
         if i == len(messages) - 1 and role == "user":
-            user_content = f"{context_str}Patient Query / Message:\n{content}"
+            user_content = f"{context_str}{lang_directive}Patient Query / Message:\n{content}"
             formatted_contents.append(user_content)
         else:
             formatted_contents.append(content)
             
     config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=SYSTEM_INSTRUCTION + (f"\nIMPORTANT: The patient has requested this consultation strictly in {language} language." if language else ""),
         temperature=0.25
     )
     
@@ -102,4 +114,4 @@ def generate_chat_remedy(
     raise last_err or Exception("All Gemini model generation attempts failed.")
 
 if __name__ == "__main__":
-    print("Gemini Helper configured with gemini-3.6-flash primary model.")
+    print("Gemini Helper configured with multi-language support and gemini-3.6-flash.")
