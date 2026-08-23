@@ -11,19 +11,21 @@ class TestAyurvedaDoctorChatServer(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Sushruta AI", response.text)
         self.assertIn("Sage Dhanvantari", response.text)
-        self.assertIn("select-language", response.text)
+        self.assertIn("landing-site-language", response.text)
+        self.assertIn("chat-response-language", response.text)
         self.assertIn("Telugu", response.text)
         
     def test_static_css_served(self):
         response = self.client.get("/static/style.css")
         self.assertEqual(response.status_code, 200)
         self.assertIn("--bg-dark", response.text)
-        self.assertIn("lang-selector-wrapper", response.text)
+        self.assertIn("chat-response-lang-badge", response.text)
         
     def test_static_js_served(self):
         response = self.client.get("/static/app.js")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("LANGUAGE_STORAGE_KEY", response.text)
+        self.assertIn("I18N_DICTIONARY", response.text)
+        self.assertIn("RESPONSE_LANG_STORAGE_KEY", response.text)
         
     def test_config_status_endpoint(self):
         response = self.client.get("/api/config-status")
