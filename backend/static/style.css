@@ -2014,6 +2014,33 @@ body {
 
 /* Mobile Devices (<= 768px) */
 @media (max-width: 768px) {
+    .landing-nav-container {
+        padding: 0 1rem;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+    }
+
+    .landing-brand {
+        flex-shrink: 0;
+        gap: 0.5rem;
+    }
+
+    .landing-brand-title {
+        white-space: nowrap;
+        font-size: 1.15rem;
+    }
+
+    .landing-nav-actions {
+        flex-wrap: nowrap;
+        gap: 0.4rem;
+        flex-shrink: 0;
+    }
+
+    /* Hide the redundant Start Consultation button in header on mobile to prevent overflow */
+    #btn-landing-start {
+        display: none !important;
+    }
+
     /* Off-canvas Mobile Drawer for Sidebar */
     .sidebar {
         position: fixed;
@@ -2052,7 +2079,7 @@ body {
     }
 
     .lang-select, .chat-response-select {
-        max-width: 85px;
+        max-width: 80px;
     }
 
     .header-right {
@@ -2071,15 +2098,48 @@ body {
 /* Small Mobile Screens (<= 480px) */
 @media (max-width: 480px) {
     .landing-nav-container {
-        padding: 0 0.75rem;
+        padding: 0 0.5rem;
+        gap: 0.35rem;
     }
 
     .landing-brand-tag {
         display: none;
     }
 
+    .landing-brand-title {
+        font-size: 1.05rem;
+    }
+
+    .brand-icon {
+        font-size: 1.3rem;
+    }
+
+    .lang-selector-wrapper {
+        padding: 0.25rem 0.45rem;
+        gap: 0.2rem;
+    }
+
     .lang-selector-label {
         display: none;
+    }
+
+    .lang-select {
+        max-width: 65px;
+        font-size: 0.72rem;
+    }
+
+    .btn-auth-outline {
+        padding: 0.3rem 0.55rem;
+        font-size: 0.72rem;
+        min-height: 30px;
+        gap: 0.25rem;
+    }
+
+    .auth-user-pill span.auth-user-name {
+        max-width: 65px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .hero-badge {
@@ -2110,5 +2170,7 @@ body {
 
     .modal-card {
         padding: 1.15rem;
+        width: 95vw;
+        max-width: 440px;
     }
 }

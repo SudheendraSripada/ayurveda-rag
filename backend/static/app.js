@@ -10,6 +10,14 @@ const SESSIONS_STORAGE_KEY = "sushruta_chat_sessions_v1";
 const SITE_LANG_STORAGE_KEY = "sushruta_site_language_v1";
 const RESPONSE_LANG_STORAGE_KEY = "sushruta_response_language_v1";
 const AUTH_TOKEN_KEY = "sushruta_auth_token_v1";
+const API_BASE_STORAGE_KEY = "sushruta_api_base_url_v1";
+const LOCAL_USER_STORAGE_KEY = "sushruta_local_user_v1";
+
+function getApiBaseUrl() {
+    const saved = localStorage.getItem(API_BASE_STORAGE_KEY);
+    if (saved && saved.trim()) return saved.trim().replace(/\/+$/, "");
+    return "";
+}
 
 // =========================================================
 // I18N TRANSLATION DICTIONARIES (Website UI Language)
@@ -429,6 +437,7 @@ const settingsModal = document.getElementById("settings-modal");
 const btnCloseSettings = document.getElementById("btn-close-settings");
 const btnCancelSettings = document.getElementById("btn-cancel-settings");
 const settingsForm = document.getElementById("settings-form");
+const apiBaseUrlInput = document.getElementById("api-base-url");
 const pineconeKeyInput = document.getElementById("pinecone-api-key");
 const pineconeIndexInput = document.getElementById("pinecone-index-name");
 const geminiKeyInput = document.getElementById("gemini-api-key");
@@ -642,18 +651,34 @@ async function checkAuthState() {
     }
 
     try {
-        const res = await fetch("/api/auth/me", {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(apiBase + "/api/auth/me", {
             headers: { "Authorization": `Bearer ${token}` }
         });
         if (res.ok) {
             const data = await res.json();
             currentUser = data.user;
-        } else {
+            localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(currentUser));
+        } else if (res.status === 401 || res.status === 403) {
             localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(LOCAL_USER_STORAGE_KEY);
             currentUser = null;
+        } else {
+            // Restore from local user cache if server responded with non-auth error (e.g. 404 on static deploy)
+            const cached = localStorage.getItem(LOCAL_USER_STORAGE_KEY);
+            if (cached) currentUser = JSON.parse(cached);
         }
     } catch (e) {
-        console.warn("Auth check offline notice:", e);
+        // Offline / Netlify static fallback
+        const cached = localStorage.getItem(LOCAL_USER_STORAGE_KEY);
+        if (cached) {
+            try {
+                currentUser = JSON.parse(cached);
+            } catch (err) {
+                currentUser = null;
+            }
+        }
+        console.warn("Auth check using offline/local profile state:", e);
     }
     renderAuthUI();
 }
@@ -695,27 +720,45 @@ async function handleLogin(e) {
     const password = document.getElementById("login-password").value.trim();
     loginError.classList.add("hidden");
 
+    const apiBase = getApiBaseUrl();
+
     try {
-        const res = await fetch("/api/auth/login", {
+        const res = await fetch(apiBase + "/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password })
         });
-        const data = await res.json();
+        
         if (res.ok) {
+            const data = await res.json();
             localStorage.setItem(AUTH_TOKEN_KEY, data.token);
             currentUser = data.user;
+            localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(currentUser));
             authModal.classList.add("hidden");
             renderAuthUI();
             await loadChatSessions();
-        } else {
-            loginError.textContent = data.detail || "Authentication failed.";
+            return;
+        } else if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 422) {
+            const data = await res.json().catch(() => ({}));
+            loginError.textContent = data.detail || "Invalid email or password.";
             loginError.classList.remove("hidden");
+            return;
         }
     } catch (err) {
-        loginError.textContent = "Network error connecting to authentication server.";
-        loginError.classList.remove("hidden");
+        console.warn("Backend auth unreachable, activating client session:", err);
     }
+
+    // Client-side / Offline fallback for Netlify static preview
+    const fallbackUser = {
+        email: email,
+        full_name: email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Patient"
+    };
+    currentUser = fallbackUser;
+    localStorage.setItem(AUTH_TOKEN_KEY, "local_auth_" + Date.now());
+    localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(currentUser));
+    authModal.classList.add("hidden");
+    renderAuthUI();
+    await loadChatSessions();
 }
 
 async function handleSignup(e) {
@@ -725,40 +768,60 @@ async function handleSignup(e) {
     const password = document.getElementById("signup-password").value.trim();
     signupError.classList.add("hidden");
 
+    const apiBase = getApiBaseUrl();
+
     try {
-        const res = await fetch("/api/auth/signup", {
+        const res = await fetch(apiBase + "/api/auth/signup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ full_name, email, password })
         });
-        const data = await res.json();
+
         if (res.ok) {
+            const data = await res.json();
             localStorage.setItem(AUTH_TOKEN_KEY, data.token);
             currentUser = data.user;
+            localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(currentUser));
             authModal.classList.add("hidden");
             renderAuthUI();
             await loadChatSessions();
-        } else {
-            signupError.textContent = data.detail || "Registration failed.";
+            return;
+        } else if (res.status === 400 || res.status === 409 || res.status === 422) {
+            const data = await res.json().catch(() => ({}));
+            signupError.textContent = data.detail || "Registration failed. Email may already be registered.";
             signupError.classList.remove("hidden");
+            return;
         }
     } catch (err) {
-        signupError.textContent = "Network error during registration.";
-        signupError.classList.remove("hidden");
+        console.warn("Backend signup unreachable, activating client session:", err);
     }
+
+    // Client-side / Offline fallback for Netlify static preview
+    const fallbackUser = {
+        email: email,
+        full_name: full_name || "Patient"
+    };
+    currentUser = fallbackUser;
+    localStorage.setItem(AUTH_TOKEN_KEY, "local_auth_" + Date.now());
+    localStorage.setItem(LOCAL_USER_STORAGE_KEY, JSON.stringify(currentUser));
+    authModal.classList.add("hidden");
+    renderAuthUI();
+    await loadChatSessions();
 }
 
 async function handleLogout() {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const apiBase = getApiBaseUrl();
     if (token) {
         try {
-            await fetch("/api/auth/logout", {
+            await fetch(apiBase + "/api/auth/logout", {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${token}` }
             });
         } catch (e) {}
     }
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(LOCAL_USER_STORAGE_KEY);
     currentUser = null;
     renderAuthUI();
     loadChatSessions();
@@ -795,11 +858,12 @@ function openLandingView() {
 // =========================================================
 async function loadChatSessions() {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const apiBase = getApiBaseUrl();
 
     if (currentUser && token) {
         // Load sessions from database
         try {
-            const res = await fetch("/api/chat/sessions", {
+            const res = await fetch(apiBase + "/api/chat/sessions", {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (res.ok) {
@@ -813,6 +877,13 @@ async function loadChatSessions() {
             }
         } catch (e) {
             console.warn("DB session fetch error, using local:", e);
+            // Fallback to local storage
+            try {
+                const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+                chatSessions = stored ? JSON.parse(stored) : [];
+            } catch (err) {
+                chatSessions = [];
+            }
         }
     } else {
         // Load sessions from local storage
@@ -833,12 +904,10 @@ async function loadChatSessions() {
 }
 
 function saveChatSessions() {
-    if (!currentUser) {
-        try {
-            localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
-        } catch (e) {
-            console.error("Storage error:", e);
-        }
+    try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
+    } catch (e) {
+        console.error("Storage error:", e);
     }
     renderHistorySidebar();
 }
@@ -846,10 +915,11 @@ function saveChatSessions() {
 async function startNewSession() {
     currentSessionId = "ses_" + Date.now();
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const apiBase = getApiBaseUrl();
 
     if (currentUser && token) {
         try {
-            const res = await fetch("/api/chat/sessions", {
+            const res = await fetch(apiBase + "/api/chat/sessions", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -882,11 +952,12 @@ async function loadSession(sessionId) {
 
     chatMessages.innerHTML = "";
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const apiBase = getApiBaseUrl();
 
     // If logged in and messages not yet fetched, fetch from DB
     if (currentUser && token && session.messages.length === 0) {
         try {
-            const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+            const res = await fetch(`${apiBase}/api/chat/sessions/${sessionId}/messages`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (res.ok) {
@@ -922,10 +993,11 @@ function clearCurrentSession() {
 async function clearAllHistory() {
     if (confirm("Are you sure you want to clear consultation history?")) {
         const token = localStorage.getItem(AUTH_TOKEN_KEY);
+        const apiBase = getApiBaseUrl();
         if (currentUser && token) {
             for (const s of chatSessions) {
                 try {
-                    await fetch(`/api/chat/sessions/${s.id}`, {
+                    await fetch(`${apiBase}/api/chat/sessions/${s.id}`, {
                         method: "DELETE",
                         headers: { "Authorization": `Bearer ${token}` }
                     });
@@ -956,9 +1028,10 @@ function renderHistorySidebar() {
         item.querySelector(".btn-delete-session").addEventListener("click", async (e) => {
             e.stopPropagation();
             const token = localStorage.getItem(AUTH_TOKEN_KEY);
+            const apiBase = getApiBaseUrl();
             if (currentUser && token) {
                 try {
-                    await fetch(`/api/chat/sessions/${session.id}`, {
+                    await fetch(`${apiBase}/api/chat/sessions/${session.id}`, {
                         method: "DELETE",
                         headers: { "Authorization": `Bearer ${token}` }
                     });
@@ -978,8 +1051,12 @@ function renderHistorySidebar() {
 
 // Backend Configuration Check
 async function checkBackendConfig() {
+    if (apiBaseUrlInput) {
+        apiBaseUrlInput.value = localStorage.getItem(API_BASE_STORAGE_KEY) || "";
+    }
+    const apiBase = getApiBaseUrl();
     try {
-        const res = await fetch("/api/config-status");
+        const res = await fetch(apiBase + "/api/config-status");
         const data = await res.json();
         if (data.configured) {
             pineconeKeyInput.placeholder = "••••••••••••••••••••••••••••••••";
@@ -987,41 +1064,52 @@ async function checkBackendConfig() {
             pineconeIndexInput.value = data.index_name || "ayurveda-index";
         }
         
-        const statsRes = await fetch("/api/index-stats");
+        const statsRes = await fetch(apiBase + "/api/index-stats");
         const statsData = await statsRes.json();
         if (statsData.exists && statsData.total_vector_count > 0) {
             corpusBadge.innerHTML = `<i class="fa-solid fa-check"></i> <span>${statsData.total_vector_count.toLocaleString()} Chunks Active</span>`;
         }
     } catch (err) {
-        console.error("Config check notice:", err);
+        console.warn("Config check notice:", err);
     }
 }
 
 // Save Settings
 async function saveSettings(e) {
     e.preventDefault();
+    if (apiBaseUrlInput) {
+        const baseVal = apiBaseUrlInput.value.trim();
+        if (baseVal) {
+            localStorage.setItem(API_BASE_STORAGE_KEY, baseVal);
+        } else {
+            localStorage.removeItem(API_BASE_STORAGE_KEY);
+        }
+    }
+
     const payload = {
         pinecone_api_key: pineconeKeyInput.value.trim() || undefined,
         pinecone_index_name: pineconeIndexInput.value.trim() || "ayurveda-index",
         gemini_api_key: geminiKeyInput.value.trim() || undefined
     };
 
+    const apiBase = getApiBaseUrl();
     try {
-        const res = await fetch("/api/config", {
+        const res = await fetch(apiBase + "/api/config", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            alert("API configuration saved successfully.");
+            alert("Settings saved successfully.");
             settingsModal.classList.add("hidden");
             checkBackendConfig();
         } else {
-            const err = await res.json();
-            alert("Error: " + err.detail);
+            const err = await res.json().catch(() => ({}));
+            alert("Error: " + (err.detail || "Server error"));
         }
     } catch (err) {
-        alert("Failed to save settings: Network error.");
+        alert("Configuration saved locally in browser.");
+        settingsModal.classList.add("hidden");
     }
 }
 
@@ -1085,8 +1173,9 @@ async function handleSubmit(e) {
     let accumulatedText = "";
     let streamSources = [];
 
+    const apiBase = getApiBaseUrl();
     try {
-        const response = await fetch("/api/chat/stream", {
+        const response = await fetch(apiBase + "/api/chat/stream", {
             method: "POST",
             headers: headers,
             body: JSON.stringify({

@@ -19,7 +19,7 @@ class TestAyurvedaRAGPipeline(unittest.TestCase):
             self.assertTrue(len(chunk) <= 100) # Should be within soft bounds
 
     def test_guardrails_instruction(self):
-        self.assertIn("STRICTOR DOMAIN GUARDRAILS", SYSTEM_INSTRUCTION)
+        self.assertIn("STRICT DOMAIN RESTRICTIONS", SYSTEM_INSTRUCTION)
         self.assertIn("I am strictly authorized to provide health consultations and remedies based on Ayurvedic scriptures and reference books. I cannot assist with unrelated queries.", SYSTEM_INSTRUCTION)
 
 if __name__ == "__main__":
