@@ -393,6 +393,7 @@ const chatResponseLang = document.getElementById("chat-response-language");
 
 // Sidebar & Chat Elements
 const sidebar = document.getElementById("sidebar");
+const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
 const btnCollapseSidebar = document.getElementById("btn-collapse-sidebar");
 
@@ -511,17 +512,42 @@ function setupEventListeners() {
     if (btnReturnHome) btnReturnHome.addEventListener("click", () => openLandingView());
     if (btnHeaderHome) btnHeaderHome.addEventListener("click", () => openLandingView());
 
-    // 5. Sidebar Collapse / Expand
+    // 5. Sidebar Collapse / Expand (mobile drawer + desktop + backdrop)
+    const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
+
+    function openSidebar() {
+        if (isMobile()) {
+            sidebar.classList.add("mobile-open");
+        } else {
+            sidebar.classList.remove("collapsed");
+        }
+        sidebarBackdrop?.classList.remove("hidden");
+    }
+
+    function closeSidebar() {
+        if (isMobile()) {
+            sidebar.classList.remove("mobile-open");
+        } else {
+            sidebar.classList.add("collapsed");
+        }
+        sidebarBackdrop?.classList.add("hidden");
+    }
+
     if (btnToggleSidebar) {
         btnToggleSidebar.addEventListener("click", () => {
-            sidebar.classList.toggle("collapsed");
+            const isOpen = isMobile()
+                ? sidebar.classList.contains("mobile-open")
+                : !sidebar.classList.contains("collapsed");
+            isOpen ? closeSidebar() : openSidebar();
         });
     }
 
     if (btnCollapseSidebar) {
-        btnCollapseSidebar.addEventListener("click", () => {
-            sidebar.classList.add("collapsed");
-        });
+        btnCollapseSidebar.addEventListener("click", closeSidebar);
+    }
+
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener("click", closeSidebar);
     }
 
     // 6. Chat Form Submission
