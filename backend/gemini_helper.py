@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Generator, List, Dict
 from google import genai
 from google.genai import types
 
@@ -40,16 +41,7 @@ Organize your consultation in clean, engaging Markdown:
 - **Follow-Up Question**: Conclude with a helpful diagnostic question (e.g. asking about digestion, sleep, duration) to maintain an interactive consultation.
 """
 
-def generate_chat_remedy(
-    api_key: str, 
-    messages: list[dict], 
-    context_passages: list[dict], 
-    language: str = "English",
-    model_name: str = "gemini-3.6-flash"
-) -> str:
-    """Generate multi-turn Ayurvedic consultation response in selected language using Gemini with retrieved context."""
-    client = genai.Client(api_key=api_key)
-    
+def prepare_prompt_contents(messages: list[dict], context_passages: list[dict], language: str = "English") -> list[str]:
     # Construct context string with passage numbers for citations
     context_str = ""
     if context_passages:
@@ -75,7 +67,6 @@ def generate_chat_remedy(
         lang_directive = "\n=== MANDATORY LANGUAGE DIRECTIVE ===\nRespond in fluent English while preserving inline citations like [1], [2].\n\n"
         
     formatted_contents = []
-    
     for i, msg in enumerate(messages):
         role = msg.get("role", "user")
         content = msg.get("content", "")
@@ -86,12 +77,24 @@ def generate_chat_remedy(
         else:
             formatted_contents.append(content)
             
+    return formatted_contents
+
+def generate_chat_remedy(
+    api_key: str, 
+    messages: list[dict], 
+    context_passages: list[dict], 
+    language: str = "English",
+    model_name: str = "gemini-3.6-flash"
+) -> str:
+    """Generate multi-turn Ayurvedic consultation response in selected language using Gemini with retrieved context."""
+    client = genai.Client(api_key=api_key)
+    formatted_contents = prepare_prompt_contents(messages, context_passages, language)
+            
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION + (f"\nIMPORTANT: The patient has requested this consultation strictly in {language} language." if language else ""),
         temperature=0.25
     )
     
-    # Candidate models in order of priority
     candidate_models = [
         "gemini-3.6-flash",
         "gemini-2.5-flash",
@@ -113,5 +116,40 @@ def generate_chat_remedy(
             
     raise last_err or Exception("All Gemini model generation attempts failed.")
 
-if __name__ == "__main__":
-    print("Gemini Helper configured with multi-language support and gemini-3.6-flash.")
+def stream_chat_remedy(
+    api_key: str,
+    messages: list[dict],
+    context_passages: list[dict],
+    language: str = "English"
+) -> Generator[str, None, None]:
+    """Stream multi-turn Ayurvedic consultation tokens in real-time."""
+    client = genai.Client(api_key=api_key)
+    formatted_contents = prepare_prompt_contents(messages, context_passages, language)
+    
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_INSTRUCTION + (f"\nIMPORTANT: The patient has requested this consultation strictly in {language} language." if language else ""),
+        temperature=0.25
+    )
+    
+    candidate_models = [
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-flash-latest"
+    ]
+    
+    for model in candidate_models:
+        try:
+            response_stream = client.models.generate_content_stream(
+                model=model,
+                contents=formatted_contents,
+                config=config
+            )
+            for chunk in response_stream:
+                if chunk.text:
+                    yield chunk.text
+            return
+        except Exception as e:
+            logger.warning(f"Stream model {model} failed: {str(e)}. Attempting fallback...")
+            continue
+            
+    raise Exception("Streaming failed across all candidate models.")

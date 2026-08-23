@@ -3,11 +3,13 @@ let currentSessionId = null;
 let chatSessions = [];
 let isGenerating = false;
 let currentSources = [];
+let currentUser = null;
 
 // Storage Keys
 const SESSIONS_STORAGE_KEY = "sushruta_chat_sessions_v1";
 const SITE_LANG_STORAGE_KEY = "sushruta_site_language_v1";
 const RESPONSE_LANG_STORAGE_KEY = "sushruta_response_language_v1";
+const AUTH_TOKEN_KEY = "sushruta_auth_token_v1";
 
 // =========================================================
 // I18N TRANSLATION DICTIONARIES (Website UI Language)
@@ -21,6 +23,7 @@ const I18N_DICTIONARY = {
         "nav_faq": "FAQ",
         "site_lang_label": "Site:",
         "nav_start_btn": "Start Consultation",
+        "nav_login": "Sign In",
         "hero_badge": "<i class=\"fa-solid fa-sparkles\"></i> 5,000 Years of Vedic Wisdom &bull; Grounded in 31 Scriptures",
         "hero_title_1": "Ancient Ayurvedic Healing,",
         "hero_title_2": "Prescribed by Neural Intelligence.",
@@ -73,7 +76,7 @@ const I18N_DICTIONARY = {
         "faq_q2": "How do citations work?",
         "faq_a2": "Whenever Sage Dhanvantari recommends a formulation or herb from the 31 books, a numbered badge like [1] or [2] appears. Clicking it displays the original book title and page excerpt.",
         "faq_q3": "Is my consultation data private?",
-        "faq_a3": "Yes. Your conversation history is saved exclusively in your browser localStorage. No personal consultation logs are sold or stored permanently on third-party tracking databases.",
+        "faq_a3": "Yes. Your conversation history is saved securely in your private user database or browser localStorage. No personal consultation logs are sold or monetized.",
         "cta_banner_title": "Ready to Begin Your Healing Journey?",
         "cta_banner_sub": "Experience authentic, root-cause Ayurvedic consultations in your preferred language.",
         "cta_banner_btn": "Start Consultation Now",
@@ -109,6 +112,7 @@ const I18N_DICTIONARY = {
         "nav_faq": "సందేహాలు (FAQ)",
         "site_lang_label": "భాష:",
         "nav_start_btn": "వైద్య సలహా పొందండి",
+        "nav_login": "లాగిన్",
         "hero_badge": "<i class=\"fa-solid fa-sparkles\"></i> 5000 ఏళ్ళ ప్రాచీన వేద విజ్ఞానం &bull; 31 ప్రామాణిక గ్రంథాలు",
         "hero_title_1": "ప్రాచీన ఆయుర్వేద చికిత్స,",
         "hero_title_2": "కృత్రిమ మేధస్సు (AI) సహకారంతో.",
@@ -150,7 +154,7 @@ const I18N_DICTIONARY = {
         "pillar_3_title": "స్పష్టమైన పేజీ రిఫరెన్స్‌లు",
         "pillar_3_desc": "ప్రతి మూలిక మరియు చిట్కాకు మూల గ్రంథం మరియు పేజీ నంబర్ అందించబడుతుంది.",
         "pillar_4_title": "పూర్తి డేటా గోప్యత",
-        "pillar_4_desc": "మీ సంభాషణలు మీ బ్రౌజర్‌లోనే ఉంటాయి, ఎలాంటి వ్యక్తిగత డేటా నిల్వ చేయబడదు.",
+        "pillar_4_desc": "మీ సంభాషణలు మీ ఖాతా లేదా బ్రౌజర్‌లోనే సురక్షితంగా ఉంటాయి.",
         "scriptures_badge": "జ్ఞాన భాండాగారం",
         "scriptures_title": "31 ప్రాచీన గ్రంథాల సమగ్ర సమాహారం",
         "scriptures_sub": "వందల సంవత్సరాల ప్రాచీన భారతీయ వైద్య విజ్ఞానం.",
@@ -161,7 +165,7 @@ const I18N_DICTIONARY = {
         "faq_q2": "పుస్తక ఆధారాలు (Citations) ఎలా పనిచేస్తాయి?",
         "faq_a2": "సలహాలలో [1], [2] పై క్లిక్ చేసినప్పుడు సంబంధిత పుస్తకం పేరు మరియు శ్లోకం కనిపిస్తాయి.",
         "faq_q3": "నా ఆరోగ్య సమాచారం సురక్షితమేనా?",
-        "faq_a3": "అవును. మీ చాట్ డేటా మీ కంప్యూటర్‌లోనే లోకల్‌గా నిల్వ చేయబడుతుంది.",
+        "faq_a3": "అవును. మీ చాట్ డేటా మీ ఖాతాలో మాత్రమే ప్రైవేట్‌గా నిల్వ చేయబడుతుంది.",
         "cta_banner_title": "ఆరోగ్యవంతమైన జీవనానికి సిద్ధమా?",
         "cta_banner_sub": "మీకు నచ్చిన భాషలో ప్రాచీన ఆయుర్వేద సలహాలను పొందండి.",
         "cta_banner_btn": "ఇప్పుడే సంప్రదించండి",
@@ -197,6 +201,7 @@ const I18N_DICTIONARY = {
         "nav_faq": "अक्सर पूछे जाने वाले प्रश्न",
         "site_lang_label": "भाषा:",
         "nav_start_btn": "परामर्श शुरू करें",
+        "nav_login": "साइन इन",
         "hero_badge": "<i class=\"fa-solid fa-sparkles\"></i> 5000 वर्षों का वैदिक ज्ञान &bull; 31 शास्त्रीय ग्रंथों पर आधारित",
         "hero_title_1": "प्राचीन आयुर्वेदिक चिकित्सा,",
         "hero_title_2": "न्यूरल आर्टिफिशियल इंटेलिजेंस द्वारा।",
@@ -238,7 +243,7 @@ const I18N_DICTIONARY = {
         "pillar_3_title": "सत्यापनीय पुस्तक संदर्भ",
         "pillar_3_desc": "प्रत्येक औषधि और नुस्खे के साथ मूल ग्रंथ और पृष्ठ संख्या उपलब्ध है।",
         "pillar_4_title": "पूर्ण डेटा गोपनीयता",
-        "pillar_4_desc": "आपकी स्वास्थ्य चर्चा केवल आपके ब्राउज़र में सुरक्षित रहती है।",
+        "pillar_4_desc": "आपकी स्वास्थ्य चर्चा केवल आपके खाते में सुरक्षित रहती है।",
         "scriptures_badge": "ज्ञानकोष",
         "scriptures_title": "31 डिजिटल प्राचीन ग्रंथ",
         "scriptures_sub": "शताब्दियों की पारंपरिक भारतीय चिकित्सा धरोहर।",
@@ -249,7 +254,7 @@ const I18N_DICTIONARY = {
         "faq_q2": "पुस्तक संदर्भ (Citations) कैसे देखें?",
         "faq_a2": "[1], [2] पर क्लिक करके मूल पुस्तक का नाम और श्लोक देख सकते हैं।",
         "faq_q3": "क्या मेरा डेटा सुरक्षित है?",
-        "faq_a3": "हाँ, आपकी सभी बातचीत केवल आपके लोकल डिवाइस पर ही रहती है।",
+        "faq_a3": "हाँ, आपकी बातचीत सुरक्षित रूप से एन्क्रिप्टेड रहती है।",
         "cta_banner_title": "आरोग्य जीवन की शुरुआत करें",
         "cta_banner_sub": "अपनी पसंदीदा भाषा में आयुर्वेदिक मार्गदर्शन प्राप्त करें।",
         "cta_banner_btn": "अभी परामर्श लें",
@@ -285,6 +290,7 @@ const I18N_DICTIONARY = {
         "nav_faq": "प्रश्नोत्तराणि",
         "site_lang_label": "भाषा:",
         "nav_start_btn": "परामर्शं प्रारभताम्",
+        "nav_login": "प्रवेशः",
         "hero_badge": "<i class=\"fa-solid fa-sparkles\"></i> ५००० वर्षाणां वैदिक ज्ञानम् &bull; ३१ शास्त्रीय ग्रन्थाः",
         "hero_title_1": "पुरातन आयुर्वेद चिकित्सा,",
         "hero_title_2": "कृत्रिम प्रज्ञा (AI) साहाय्येन।",
@@ -402,6 +408,20 @@ const historyList = document.getElementById("history-list");
 const btnClearAllHistory = document.getElementById("btn-clear-all-history");
 const corpusBadge = document.getElementById("corpus-status-badge");
 
+// Auth Elements
+const authModal = document.getElementById("auth-modal");
+const btnCloseAuth = document.getElementById("btn-close-auth");
+const tabLogin = document.getElementById("tab-login");
+const tabSignup = document.getElementById("tab-signup");
+const loginForm = document.getElementById("login-form");
+const signupForm = document.getElementById("signup-form");
+const loginError = document.getElementById("login-error");
+const signupError = document.getElementById("signup-error");
+const btnLandingLogin = document.getElementById("btn-landing-login");
+const btnChatLogin = document.getElementById("btn-chat-login");
+const landingAuthContainer = document.getElementById("landing-auth-container");
+const chatAuthContainer = document.getElementById("chat-auth-container");
+
 // Settings Modal Elements
 const btnSettingsModal = document.getElementById("btn-settings-modal");
 const settingsModal = document.getElementById("settings-modal");
@@ -429,7 +449,7 @@ const popoverPage = document.getElementById("popover-page");
 const popoverExcerpt = document.getElementById("popover-excerpt");
 
 // Initialize on DOM Ready
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     marked.setOptions({ breaks: true, gfm: true });
     
     // 1. Restore & Apply Website UI Language
@@ -442,7 +462,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedResponseLang = localStorage.getItem(RESPONSE_LANG_STORAGE_KEY) || "English";
     if (chatResponseLang) chatResponseLang.value = savedResponseLang;
     
-    loadChatSessions();
+    // 3. Initialize Auth State
+    await checkAuthState();
+
+    // 4. Load Chat Sessions
+    await loadChatSessions();
     setupEventListeners();
     checkBackendConfig();
 });
@@ -523,7 +547,7 @@ function setupEventListeners() {
     btnClearChat.addEventListener("click", () => clearCurrentSession());
     btnClearAllHistory.addEventListener("click", clearAllHistory);
 
-    // 9. Quick Prompt Cards (Works on both Landing & Chat views)
+    // 9. Quick Prompt Cards
     document.querySelectorAll("[data-prompt]").forEach(el => {
         el.addEventListener("click", () => {
             const promptText = el.getAttribute("data-prompt");
@@ -536,20 +560,43 @@ function setupEventListeners() {
         });
     });
 
-    // 10. Settings Modal
+    // 10. Auth Modal Listeners
+    if (btnLandingLogin) btnLandingLogin.addEventListener("click", () => openAuthModal());
+    if (btnChatLogin) btnChatLogin.addEventListener("click", () => openAuthModal());
+    if (btnCloseAuth) btnCloseAuth.addEventListener("click", () => authModal.classList.add("hidden"));
+
+    if (tabLogin && tabSignup) {
+        tabLogin.addEventListener("click", () => {
+            tabLogin.classList.add("active");
+            tabSignup.classList.remove("active");
+            loginForm.classList.remove("hidden");
+            signupForm.classList.add("hidden");
+        });
+        tabSignup.addEventListener("click", () => {
+            tabSignup.classList.add("active");
+            tabLogin.classList.remove("active");
+            signupForm.classList.remove("hidden");
+            loginForm.classList.add("hidden");
+        });
+    }
+
+    if (loginForm) loginForm.addEventListener("submit", handleLogin);
+    if (signupForm) signupForm.addEventListener("submit", handleSignup);
+
+    // 11. Settings Modal
     btnSettingsModal.addEventListener("click", () => settingsModal.classList.remove("hidden"));
     btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     btnCancelSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     settingsForm.addEventListener("submit", saveSettings);
 
-    // 11. Legal Modals from Footer
+    // 12. Legal Modals from Footer
     if (btnFooterPrivacy) btnFooterPrivacy.addEventListener("click", () => openLegalModal("privacy"));
     if (btnFooterTerms) btnFooterTerms.addEventListener("click", () => openLegalModal("terms"));
     if (btnFooterDisclaimer) btnFooterDisclaimer.addEventListener("click", () => openLegalModal("disclaimer"));
     btnCloseLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
     btnDismissLegal.addEventListener("click", () => legalModal.classList.add("hidden"));
 
-    // 12. Global Click to close Popover & Modals
+    // 13. Global Click to close Popovers
     document.addEventListener("click", (e) => {
         if (!e.target.closest(".inline-citation") && !e.target.closest(".source-chip")) {
             citationPopover.classList.add("hidden");
@@ -557,7 +604,143 @@ function setupEventListeners() {
     });
 }
 
-// Apply Website UI Language Translations to all [data-i18n] elements
+// =========================================================
+// AUTHENTICATION & USER MANAGEMENT
+// =========================================================
+async function checkAuthState() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+        currentUser = null;
+        renderAuthUI();
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/auth/me", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            currentUser = data.user;
+        } else {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            currentUser = null;
+        }
+    } catch (e) {
+        console.warn("Auth check offline notice:", e);
+    }
+    renderAuthUI();
+}
+
+function renderAuthUI() {
+    const containers = [landingAuthContainer, chatAuthContainer];
+    containers.forEach(c => {
+        if (!c) return;
+        if (currentUser) {
+            c.innerHTML = `
+                <div class="auth-user-pill">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span class="auth-user-name" title="${escapeHTML(currentUser.full_name)}">${escapeHTML(currentUser.full_name)}</span>
+                    <button class="btn-auth-logout" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i></button>
+                </div>
+            `;
+            c.querySelector(".btn-auth-logout").addEventListener("click", handleLogout);
+        } else {
+            c.innerHTML = `
+                <button class="btn-auth-outline" title="Login to save consultations">
+                    <i class="fa-solid fa-user"></i>
+                    <span>Sign In</span>
+                </button>
+            `;
+            c.querySelector(".btn-auth-outline").addEventListener("click", openAuthModal);
+        }
+    });
+}
+
+function openAuthModal() {
+    authModal.classList.remove("hidden");
+    loginError.classList.add("hidden");
+    signupError.classList.add("hidden");
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value.trim();
+    loginError.classList.add("hidden");
+
+    try {
+        const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+            currentUser = data.user;
+            authModal.classList.add("hidden");
+            renderAuthUI();
+            await loadChatSessions();
+        } else {
+            loginError.textContent = data.detail || "Authentication failed.";
+            loginError.classList.remove("hidden");
+        }
+    } catch (err) {
+        loginError.textContent = "Network error connecting to authentication server.";
+        loginError.classList.remove("hidden");
+    }
+}
+
+async function handleSignup(e) {
+    e.preventDefault();
+    const full_name = document.getElementById("signup-name").value.trim();
+    const email = document.getElementById("signup-email").value.trim();
+    const password = document.getElementById("signup-password").value.trim();
+    signupError.classList.add("hidden");
+
+    try {
+        const res = await fetch("/api/auth/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ full_name, email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+            currentUser = data.user;
+            authModal.classList.add("hidden");
+            renderAuthUI();
+            await loadChatSessions();
+        } else {
+            signupError.textContent = data.detail || "Registration failed.";
+            signupError.classList.remove("hidden");
+        }
+    } catch (err) {
+        signupError.textContent = "Network error during registration.";
+        signupError.classList.remove("hidden");
+    }
+}
+
+async function handleLogout() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+        try {
+            await fetch("/api/auth/logout", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+        } catch (e) {}
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    currentUser = null;
+    renderAuthUI();
+    loadChatSessions();
+}
+
+// =========================================================
+// I18N WEBSITE UI LANGUAGE
+// =========================================================
 function applySiteLanguage(lang) {
     const dict = I18N_DICTIONARY[lang] || I18N_DICTIONARY["English"];
     document.querySelectorAll("[data-i18n]").forEach(el => {
@@ -568,7 +751,6 @@ function applySiteLanguage(lang) {
     });
 }
 
-// View Switching Functions
 function openChatView() {
     landingView.classList.add("hidden");
     chatAppView.classList.remove("hidden");
@@ -582,34 +764,80 @@ function openLandingView() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Local Storage Session Management
-function loadChatSessions() {
-    try {
-        const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
-        chatSessions = stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        chatSessions = [];
+// =========================================================
+// CHAT SESSION & DATABASE HISTORY MANAGEMENT
+// =========================================================
+async function loadChatSessions() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+    if (currentUser && token) {
+        // Load sessions from database
+        try {
+            const res = await fetch("/api/chat/sessions", {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                chatSessions = data.sessions.map(s => ({
+                    id: s.id,
+                    title: s.title,
+                    messages: [],
+                    timestamp: s.created_at
+                }));
+            }
+        } catch (e) {
+            console.warn("DB session fetch error, using local:", e);
+        }
+    } else {
+        // Load sessions from local storage
+        try {
+            const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+            chatSessions = stored ? JSON.parse(stored) : [];
+        } catch (e) {
+            chatSessions = [];
+        }
     }
 
     if (chatSessions.length > 0) {
-        loadSession(chatSessions[0].id);
+        await loadSession(chatSessions[0].id);
     } else {
-        startNewSession();
+        await startNewSession();
     }
     renderHistorySidebar();
 }
 
 function saveChatSessions() {
-    try {
-        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
-    } catch (e) {
-        console.error("Storage error:", e);
+    if (!currentUser) {
+        try {
+            localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
+        } catch (e) {
+            console.error("Storage error:", e);
+        }
     }
     renderHistorySidebar();
 }
 
-function startNewSession() {
-    currentSessionId = "session_" + Date.now();
+async function startNewSession() {
+    currentSessionId = "ses_" + Date.now();
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+    if (currentUser && token) {
+        try {
+            const res = await fetch("/api/chat/sessions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ id: currentSessionId, title: "New Consultation" })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                currentSessionId = data.session.id;
+            }
+        } catch (e) {}
+    }
+
     const newSession = {
         id: currentSessionId,
         title: "New Consultation",
@@ -618,15 +846,30 @@ function startNewSession() {
     };
     chatSessions.unshift(newSession);
     saveChatSessions();
-    loadSession(currentSessionId);
+    await loadSession(currentSessionId);
 }
 
-function loadSession(sessionId) {
+async function loadSession(sessionId) {
     currentSessionId = sessionId;
-    const session = chatSessions.find(s => s.id === sessionId);
+    let session = chatSessions.find(s => s.id === sessionId);
     if (!session) return;
 
     chatMessages.innerHTML = "";
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+    // If logged in and messages not yet fetched, fetch from DB
+    if (currentUser && token && session.messages.length === 0) {
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                session.messages = data.messages || [];
+            }
+        } catch (e) {}
+    }
+
     if (session.messages.length === 0) {
         chatMessages.appendChild(welcomeScreen);
         welcomeScreen.classList.remove("hidden");
@@ -650,11 +893,22 @@ function clearCurrentSession() {
     }
 }
 
-function clearAllHistory() {
-    if (confirm("Are you sure you want to clear all consultation history?")) {
+async function clearAllHistory() {
+    if (confirm("Are you sure you want to clear consultation history?")) {
+        const token = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (currentUser && token) {
+            for (const s of chatSessions) {
+                try {
+                    await fetch(`/api/chat/sessions/${s.id}`, {
+                        method: "DELETE",
+                        headers: { "Authorization": `Bearer ${token}` }
+                    });
+                } catch (e) {}
+            }
+        }
         chatSessions = [];
         localStorage.removeItem(SESSIONS_STORAGE_KEY);
-        startNewSession();
+        await startNewSession();
     }
 }
 
@@ -673,8 +927,17 @@ function renderHistorySidebar() {
             loadSession(session.id);
         });
 
-        item.querySelector(".btn-delete-session").addEventListener("click", (e) => {
+        item.querySelector(".btn-delete-session").addEventListener("click", async (e) => {
             e.stopPropagation();
+            const token = localStorage.getItem(AUTH_TOKEN_KEY);
+            if (currentUser && token) {
+                try {
+                    await fetch(`/api/chat/sessions/${session.id}`, {
+                        method: "DELETE",
+                        headers: { "Authorization": `Bearer ${token}` }
+                    });
+                } catch (err) {}
+            }
             chatSessions = chatSessions.filter(s => s.id !== session.id);
             saveChatSessions();
             if (currentSessionId === session.id) {
@@ -736,7 +999,9 @@ async function saveSettings(e) {
     }
 }
 
-// Handle Message Submission
+// =========================================================
+// REAL-TIME STREAMING CONSULTATION HANDLER
+// =========================================================
 async function handleSubmit(e) {
     e.preventDefault();
     const userText = chatInput.value.trim();
@@ -744,19 +1009,16 @@ async function handleSubmit(e) {
 
     welcomeScreen.classList.add("hidden");
 
-    // Retrieve active session
     let session = chatSessions.find(s => s.id === currentSessionId);
     if (!session) {
-        startNewSession();
+        await startNewSession();
         session = chatSessions.find(s => s.id === currentSessionId);
     }
 
-    // Set session title from first question
     if (session.messages.length === 0) {
         session.title = userText.length > 26 ? userText.substring(0, 24) + "..." : userText;
     }
 
-    // Add user message to state & UI
     session.messages.push({ role: "user", content: userText });
     appendMessage("user", userText);
     saveChatSessions();
@@ -766,39 +1028,105 @@ async function handleSubmit(e) {
     isGenerating = true;
     btnSend.disabled = true;
 
-    // Add typing indicator
-    const typingIndicatorEl = createTypingIndicator();
-    chatMessages.appendChild(typingIndicatorEl);
+    // Create live doctor bubble with cursor
+    const doctorRow = document.createElement("div");
+    doctorRow.className = "message-row doctor";
+    doctorRow.innerHTML = `
+        <div class="message-avatar" title="Sage Dhanvantari">
+            <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div class="message-bubble">
+            <div class="sources-placeholder"></div>
+            <div class="markdown-body">
+                <span class="streaming-text"></span><span class="streaming-cursor"></span>
+            </div>
+        </div>
+    `;
+    chatMessages.appendChild(doctorRow);
     scrollToBottom();
 
-    // Use Selected Response Language from Chatbox Selector
+    const sourcesPlaceholder = doctorRow.querySelector(".sources-placeholder");
+    const streamingTextEl = doctorRow.querySelector(".streaming-text");
+    const cursorEl = doctorRow.querySelector(".streaming-cursor");
+    const markdownBodyEl = doctorRow.querySelector(".markdown-body");
+
     const chosenResponseLang = chatResponseLang ? chatResponseLang.value : "English";
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    let accumulatedText = "";
+    let streamSources = [];
 
     try {
-        const response = await fetch("/api/chat", {
+        const response = await fetch("/api/chat/stream", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify({
                 messages: session.messages,
+                session_id: session.id,
                 language: chosenResponseLang,
                 rerank: checkboxRerank.checked
             })
         });
 
-        const data = await response.json();
-        typingIndicatorEl.remove();
-
-        if (response.ok) {
-            currentSources = data.sources || [];
-            session.messages.push({ role: "model", content: data.reply, sources: data.sources });
-            appendMessage("doctor", data.reply, data.sources);
-            saveChatSessions();
-        } else {
-            appendErrorMessage(data.detail || "Failed to generate doctor consultation. Please check your Gemini API key.");
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || "Failed to start streaming consultation.");
         }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                    try {
+                        const event = JSON.parse(line.substring(6));
+                        
+                        if (event.type === "sources" && event.sources) {
+                            streamSources = event.sources;
+                            if (streamSources.length > 0) {
+                                sourcesPlaceholder.innerHTML = renderSourcesTray(streamSources);
+                                attachCitationListeners(doctorRow, streamSources);
+                            }
+                        } else if (event.type === "token" && event.chunk) {
+                            accumulatedText += event.chunk;
+                            streamingTextEl.innerHTML = formatMessageWithCitations(accumulatedText, streamSources);
+                            attachCitationListeners(doctorRow, streamSources);
+                            scrollToBottom();
+                        } else if (event.type === "done") {
+                            accumulatedText = event.reply || accumulatedText;
+                        } else if (event.type === "error") {
+                            throw new Error(event.error);
+                        }
+                    } catch (parseErr) {
+                        console.warn("SSE parse error:", parseErr);
+                    }
+                }
+            }
+        }
+
+        // Finalize message rendering
+        cursorEl.remove();
+        markdownBodyEl.innerHTML = formatMessageWithCitations(accumulatedText, streamSources);
+        attachCitationListeners(doctorRow, streamSources);
+
+        session.messages.push({ role: "model", content: accumulatedText, sources: streamSources });
+        saveChatSessions();
+
     } catch (err) {
-        typingIndicatorEl.remove();
-        appendErrorMessage("Network error connecting to the Sushruta AI backend. Please verify your local server is running.");
+        cursorEl.remove();
+        streamingTextEl.innerHTML = `<span style="color: #fca5a5;"><strong>Consultation Notice:</strong> ${escapeHTML(err.message || "Connection error during consultation stream.")}</span>`;
     } finally {
         isGenerating = false;
         btnSend.disabled = false;
@@ -806,7 +1134,7 @@ async function handleSubmit(e) {
     }
 }
 
-// Append Message UI Bubble
+// Append Static Message Bubble (used during session restoration)
 function appendMessage(sender, text, sources = [], shouldScroll = true) {
     const row = document.createElement("div");
     row.className = `message-row ${sender}`;
@@ -895,41 +1223,6 @@ function showCitationPopover(source, anchorEl) {
     citationPopover.classList.remove("hidden");
 }
 
-function createTypingIndicator() {
-    const row = document.createElement("div");
-    row.className = "message-row doctor";
-    row.id = "typing-row";
-    row.innerHTML = `
-        <div class="message-avatar">
-            <i class="fa-solid fa-leaf"></i>
-        </div>
-        <div class="message-bubble" style="padding: 0.85rem 1.2rem;">
-            <div class="typing-indicator">
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-                <span style="margin-left: 8px; font-size: 0.78rem; color: var(--text-muted); font-style: italic;">Consulting classical Ayurvedic scriptures...</span>
-            </div>
-        </div>
-    `;
-    return row;
-}
-
-function appendErrorMessage(errorText) {
-    const row = document.createElement("div");
-    row.className = "message-row doctor";
-    row.innerHTML = `
-        <div class="message-avatar" style="color: #ef4444; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.1);">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-        <div class="message-bubble" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); color: #fca5a5;">
-            <strong>Consultation Notice:</strong> ${escapeHTML(errorText)}
-        </div>
-    `;
-    chatMessages.appendChild(row);
-    scrollToBottom();
-}
-
 function openLegalModal(type) {
     if (type === "privacy") {
         legalModalTitle.innerHTML = '<i class="fa-solid fa-user-shield"></i> Privacy Policy';
@@ -937,9 +1230,9 @@ function openLegalModal(type) {
             <p><strong>Last Updated: 2026</strong></p>
             <p>Sushruta AI is committed to protecting your personal health privacy:</p>
             <ul style="margin-left: 1.25rem; margin-top: 0.5rem;">
-                <li><strong>Local-First Storage</strong>: Your consultation history is stored directly in your web browser's local storage. We do not sell or monetize personal health data.</li>
+                <li><strong>Database Isolation</strong>: Your consultation history is stored in an isolated user account. We do not sell or monetize personal health data.</li>
                 <li><strong>API Processing</strong>: Queries are processed securely via encrypted TLS connections to Google Gemini and Pinecone vector databases solely to generate your Ayurvedic remedy.</li>
-                <li><strong>No User Profiles Required</strong>: You can consult freely without creating an account or providing personally identifiable information.</li>
+                <li><strong>Anonymous Guest Mode</strong>: You can consult freely without creating an account using browser-only local storage.</li>
             </ul>
         `;
     } else if (type === "terms") {
