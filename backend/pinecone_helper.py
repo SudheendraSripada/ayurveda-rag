@@ -2,7 +2,7 @@ import os
 import json
 import time
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from pinecone import Pinecone
 
 logger = logging.getLogger("pinecone-helper")
@@ -54,12 +54,26 @@ def resolve_pinecone_api_key(provided_key: Optional[str] = None) -> str:
             
     return ""
 
+_pinecone_client_cache: Dict[str, Pinecone] = {}
+_pinecone_index_cache: Dict[str, Any] = {}
+
 def get_pinecone_client(api_key: Optional[str] = None) -> Pinecone:
-    """Initialize and return a Pinecone client."""
+    """Initialize and return a cached singleton Pinecone client."""
     resolved_key = resolve_pinecone_api_key(api_key)
     if not resolved_key:
         raise ValueError("PINECONE_API_KEY could not be resolved from environment or configuration.")
-    return Pinecone(api_key=resolved_key)
+    if resolved_key not in _pinecone_client_cache:
+        _pinecone_client_cache[resolved_key] = Pinecone(api_key=resolved_key)
+    return _pinecone_client_cache[resolved_key]
+
+def get_pinecone_index(api_key: Optional[str] = None, index_name: str = "ayurveda-index"):
+    """Retrieve and cache Pinecone Index instance to reuse connection pools and prevent SSL leaks."""
+    resolved_key = resolve_pinecone_api_key(api_key)
+    cache_key = f"{resolved_key}:{index_name}"
+    if cache_key not in _pinecone_index_cache:
+        pc = get_pinecone_client(resolved_key)
+        _pinecone_index_cache[cache_key] = pc.Index(index_name)
+    return _pinecone_index_cache[cache_key]
 
 def init_index(api_key: Optional[str] = None, index_name: str = "ayurveda-index", cloud: str = "aws", region: str = "us-east-1") -> bool:
     """Check if the index exists, and create it using integrated inference if not."""
@@ -93,11 +107,13 @@ def get_index_stats(api_key: Optional[str] = None, index_name: str = "ayurveda-i
         if not resolved_key:
             return {"exists": False, "total_vector_count": 0, "namespaces": {}}
             
-        pc = get_pinecone_client(resolved_key)
-        if not pc.has_index(index_name):
-            return {"exists": False, "total_vector_count": 0, "namespaces": {}}
+        cache_key = f"{resolved_key}:{index_name}"
+        if cache_key not in _pinecone_index_cache:
+            pc = get_pinecone_client(resolved_key)
+            if not pc.has_index(index_name):
+                return {"exists": False, "total_vector_count": 0, "namespaces": {}}
             
-        index = pc.Index(index_name)
+        index = get_pinecone_index(resolved_key, index_name)
         stats = index.describe_index_stats()
         
         total_vectors = getattr(stats, "total_vector_count", 0)
@@ -130,6 +146,8 @@ def delete_pinecone_index(api_key: Optional[str] = None, index_name: str = "ayur
     """Delete a Pinecone index."""
     resolved_key = resolve_pinecone_api_key(api_key)
     pc = get_pinecone_client(resolved_key)
+    cache_key = f"{resolved_key}:{index_name}"
+    _pinecone_index_cache.pop(cache_key, None)
     if pc.has_index(index_name):
         pc.delete_index(index_name)
         return True
@@ -142,8 +160,7 @@ def upsert_chunks(api_key: Optional[str] = None, index_name: str = "ayurveda-ind
     if not chunks:
         return 0
     resolved_key = resolve_pinecone_api_key(api_key)
-    pc = get_pinecone_client(resolved_key)
-    index = pc.Index(index_name)
+    index = get_pinecone_index(resolved_key, index_name)
     
     records = []
     for chunk in chunks:
@@ -193,8 +210,7 @@ def upsert_catalog_books(
         return 0
         
     resolved_key = resolve_pinecone_api_key(api_key)
-    pc = get_pinecone_client(resolved_key)
-    index = pc.Index(index_name)
+    index = get_pinecone_index(resolved_key, index_name)
     
     records = []
     for b in books:
@@ -276,8 +292,7 @@ def clear_namespace(api_key: Optional[str] = None, index_name: str = "ayurveda-i
     """Clear all records from a Pinecone namespace."""
     try:
         resolved_key = resolve_pinecone_api_key(api_key)
-        pc = get_pinecone_client(resolved_key)
-        index = pc.Index(index_name)
+        index = get_pinecone_index(resolved_key, index_name)
         index.delete(delete_all=True, namespace=namespace)
         logger.info(f"Cleared namespace '{namespace}' in Pinecone index '{index_name}'.")
         return True
@@ -301,11 +316,13 @@ def search_index(
     Returns rich metadata including category, download_url, is_ayurveda, and topics.
     """
     resolved_key = resolve_pinecone_api_key(api_key)
-    pc = get_pinecone_client(resolved_key)
-    if not pc.has_index(index_name):
-        raise ValueError(f"Index {index_name} does not exist.")
+    cache_key = f"{resolved_key}:{index_name}"
+    if cache_key not in _pinecone_index_cache:
+        pc = get_pinecone_client(resolved_key)
+        if not pc.has_index(index_name):
+            raise ValueError(f"Index {index_name} does not exist.")
         
-    index = pc.Index(index_name)
+    index = get_pinecone_index(resolved_key, index_name)
     
     search_params = {
         "namespace": namespace,

@@ -3,7 +3,7 @@ import re
 import json
 import logging
 import sqlite3
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from pypdf import PdfReader
 
 logger = logging.getLogger("catalog-parser")
@@ -11,7 +11,11 @@ logger = logging.getLogger("catalog-parser")
 DEFAULT_PDF_PATH = "/home/codespace/.gemini/antigravity/brain/82daf026-db94-4963-872a-63247e685df5/.user_uploaded/media_1789351461017.pdf"
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 CATALOG_JSON_PATH = os.path.join(DATA_DIR, "books_catalog.json")
-DB_PATH = os.getenv("AYURVEDA_DB_PATH", os.path.join(os.path.dirname(__file__), "ayurveda.db"))
+
+try:
+    from database import DB_PATH
+except ImportError:
+    DB_PATH = os.getenv("AYURVEDA_DB_PATH", os.path.join(os.path.dirname(__file__), "ayurveda.db"))
 
 CATEGORY_VARIANTS = {
     "భక్తి యోగం": ["భక్తి యోగం", "భక్తు యోగెం", "భక్తి యోగము"],
@@ -151,7 +155,10 @@ def parse_catalog_from_pdf(pdf_path: str = DEFAULT_PDF_PATH) -> List[Dict[str, A
     Employs robust multiline row accumulation ending at 'Download' to eliminate wrapped-line fragmentation.
     """
     if not os.path.exists(pdf_path):
-        raise FileNotFoundError(f"PDF not found at {pdf_path}")
+        if os.path.exists(CATALOG_JSON_PATH):
+            logger.info(f"PDF not found at {pdf_path}. Using cached catalog JSON: {CATALOG_JSON_PATH}")
+            return load_catalog_from_json(CATALOG_JSON_PATH)
+        raise FileNotFoundError(f"Neither PDF at {pdf_path} nor JSON at {CATALOG_JSON_PATH} found.")
         
     reader = PdfReader(pdf_path)
     logger.info(f"Loaded PDF with {len(reader.pages)} pages from {pdf_path}.")
@@ -280,14 +287,10 @@ def populate_database_catalog(books: List[Dict[str, Any]], db_path: str = DB_PAT
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_cat ON books(category);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_ayur ON books(is_ayurveda);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_en ON books(title_english);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_book_id ON books(book_id);")
     
-    for b in books:
-        cursor.execute("""
-        INSERT INTO books (
-            id, book_id, category, title_telugu, title_english, pages, size_mb, 
-            download_url, is_ayurveda, topics, source_pdf_page
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
+    rows = [
+        (
             b['id'],
             b['book_id'],
             b['category'],
@@ -299,7 +302,16 @@ def populate_database_catalog(books: List[Dict[str, Any]], db_path: str = DB_PAT
             1 if b['is_ayurveda'] else 0,
             json.dumps(b.get('topics', [])),
             b.get('source_pdf_page', 0)
-        ))
+        )
+        for b in books
+    ]
+    
+    cursor.executemany("""
+    INSERT INTO books (
+        id, book_id, category, title_telugu, title_english, pages, size_mb, 
+        download_url, is_ayurveda, topics, source_pdf_page
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, rows)
         
     conn.commit()
     conn.close()

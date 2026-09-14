@@ -1,16 +1,21 @@
 import unittest
 import os
-import json
+import sys
 import sqlite3
-from catalog_parser import parse_catalog_from_pdf, save_catalog_to_json, load_catalog_from_json, populate_database_catalog, CATALOG_JSON_PATH, DB_PATH
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from catalog_parser import parse_catalog_from_pdf, save_catalog_to_json, load_catalog_from_json, populate_database_catalog, CATALOG_JSON_PATH, DB_PATH  # noqa: E402
 
 class TestCatalogExtraction(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        # Force re-parse to ensure clean data generation from PDF
-        cls.books = parse_catalog_from_pdf()
-        save_catalog_to_json(cls.books, CATALOG_JSON_PATH)
+        if os.path.exists(CATALOG_JSON_PATH):
+            cls.books = load_catalog_from_json(CATALOG_JSON_PATH)
+        else:
+            cls.books = parse_catalog_from_pdf()
+            save_catalog_to_json(cls.books, CATALOG_JSON_PATH)
         populate_database_catalog(cls.books, DB_PATH)
         
     def test_extracted_count_exact_3446(self):

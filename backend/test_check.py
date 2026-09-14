@@ -1,8 +1,12 @@
 import unittest
 import os
-from pinecone_helper import resolve_pinecone_api_key, get_index_stats, search_index
-from main import retrieve_ayurvedic_context
-from rag_precision import expand_ayurvedic_query
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from pinecone_helper import resolve_pinecone_api_key, get_index_stats  # noqa: E402
+from main import retrieve_ayurvedic_context  # noqa: E402
+from rag_precision import expand_ayurvedic_query  # noqa: E402
 
 class TestPineconeRAGIntegration(unittest.TestCase):
     

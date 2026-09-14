@@ -64,6 +64,19 @@ Open your browser at `http://127.0.0.1:8000`.
 
 ---
 
+## 🚀 Deployment (Vercel & Cloud)
+
+### Deploying on Vercel
+1. **Import Repository**: Connect `https://github.com/SudheendraSripada/ayurveda-rag` to your Vercel account.
+2. **Configuration**: The repository includes pre-configured `vercel.json`, root `requirements.txt`, and `api/index.py` serverless functions.
+3. **Environment Variables**: Add the following in your Vercel Project Settings:
+   - `PINECONE_API_KEY`: Your Pinecone API key
+   - `PINECONE_INDEX_NAME`: `ayurveda-index`
+   - `GEMINI_API_KEY`: Your Google Gemini API key
+4. **Decoupled Backend Mode**: If hosting the Python backend separately (e.g. on Render, AWS, or local), open the **Admin / Settings** panel in the web interface and configure the **API Base URL** (e.g. `https://your-backend.onrender.com`).
+
+---
+
 ## 🧪 Testing
 
 Run the automated test suites:

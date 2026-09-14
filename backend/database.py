@@ -4,92 +4,146 @@ import secrets
 import json
 import os
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+import shutil
+
+DEFAULT_TOKEN_TTL_DAYS = 30
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-DB_PATH = os.getenv("AYURVEDA_DB_PATH", os.path.join(os.path.dirname(__file__), "ayurveda.db"))
+def calculate_token_expiry(days: int = DEFAULT_TOKEN_TTL_DAYS) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+
+def _resolve_db_path() -> str:
+    env_path = os.getenv("AYURVEDA_DB_PATH")
+    if env_path:
+        return env_path
+    
+    default_dir = os.path.dirname(os.path.abspath(__file__))
+    default_db = os.path.join(default_dir, "ayurveda.db")
+    
+    is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") or os.getenv("NOW_REGION"))
+    is_readonly = not os.access(default_dir, os.W_OK)
+    
+    if is_serverless or is_readonly:
+        tmp_dir = os.getenv("TMPDIR", "/tmp")
+        tmp_db = os.path.join(tmp_dir, "ayurveda.db")
+        if not os.path.exists(tmp_db) and os.path.exists(default_db):
+            try:
+                shutil.copyfile(default_db, tmp_db)
+            except Exception:
+                pass
+        return tmp_db
+    
+    return default_db
+
+DB_PATH = _resolve_db_path()
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Users table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        salt TEXT NOT NULL,
-        full_name TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    );
-    """)
-    
-    # Auth tokens table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS auth_tokens (
-        token TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    """)
-    
-    # Chat sessions table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS chat_sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-    """)
-    
-    # Chat messages table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS chat_messages (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        sources_json TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
-    );
-    """)
-    
-    # Books table for 3500 catalog
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS books (
-        id INTEGER PRIMARY KEY,
-        book_id INTEGER NOT NULL,
-        category TEXT NOT NULL,
-        title_telugu TEXT NOT NULL,
-        title_english TEXT NOT NULL,
-        pages INTEGER,
-        size_mb INTEGER,
-        download_url TEXT,
-        is_ayurveda BOOLEAN DEFAULT 0,
-        topics TEXT,
-        source_pdf_page INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_cat ON books(category);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_ayur ON books(is_ayurveda);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_en ON books(title_english);")
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Users table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """)
+        
+        # Auth tokens table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS auth_tokens (
+            token TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        """)
+        
+        # Migration: ensure expires_at exists if auth_tokens was created without it
+        cursor.execute("PRAGMA table_info(auth_tokens);")
+        token_cols = [col[1] for col in cursor.fetchall()]
+        if "expires_at" not in token_cols:
+            cursor.execute("ALTER TABLE auth_tokens ADD COLUMN expires_at TEXT;")
+            
+        # Cleanup expired tokens on initialization
+        cursor.execute("""
+        DELETE FROM auth_tokens 
+        WHERE (expires_at IS NOT NULL AND expires_at < ?)
+           OR (expires_at IS NULL AND datetime(created_at, '+30 days') < datetime('now'))
+        """, (now_iso(),))
+        
+        # Chat sessions table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        """)
+        
+        # Chat messages table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            sources_json TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+        );
+        """)
+        
+        # Books table for 3500 catalog
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS books (
+            id INTEGER PRIMARY KEY,
+            book_id INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            title_telugu TEXT NOT NULL,
+            title_english TEXT NOT NULL,
+            pages INTEGER,
+            size_mb INTEGER,
+            download_url TEXT,
+            is_ayurveda BOOLEAN DEFAULT 0,
+            topics TEXT,
+            source_pdf_page INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_cat ON books(category);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_ayur ON books(is_ayurveda);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_en ON books(title_english);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_book_id ON books(book_id);")
+        
+        conn.commit()
+        conn.close()
+    except sqlite3.OperationalError:
+        pass
 
 # Password hashing
 def hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:
@@ -121,7 +175,11 @@ def create_user(email: str, password: str, full_name: str) -> Dict[str, Any]:
             (user_id, email, pwd_hash, salt, full_name, now)
         )
         token = "tok_" + secrets.token_hex(24)
-        cursor.execute("INSERT INTO auth_tokens (token, user_id, created_at) VALUES (?, ?, ?)", (token, user_id, now))
+        expires_at = calculate_token_expiry(DEFAULT_TOKEN_TTL_DAYS)
+        cursor.execute(
+            "INSERT INTO auth_tokens (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, now, expires_at)
+        )
         conn.commit()
         return {"id": user_id, "email": email, "full_name": full_name, "token": token}
     except sqlite3.IntegrityError:
@@ -145,7 +203,11 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     
     token = "tok_" + secrets.token_hex(24)
     now = now_iso()
-    cursor.execute("INSERT INTO auth_tokens (token, user_id, created_at) VALUES (?, ?, ?)", (token, user["id"], now))
+    expires_at = calculate_token_expiry(DEFAULT_TOKEN_TTL_DAYS)
+    cursor.execute(
+        "INSERT INTO auth_tokens (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+        (token, user["id"], now, expires_at)
+    )
     conn.commit()
     conn.close()
     
@@ -157,16 +219,68 @@ def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT u.id, u.email, u.full_name, u.created_at
+    SELECT u.id, u.email, u.full_name, u.created_at, t.created_at AS token_created_at, t.expires_at
     FROM auth_tokens t
     JOIN users u ON t.user_id = u.id
     WHERE t.token = ?
     """, (token,))
-    user = cursor.fetchone()
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    
+    # Check token expiration
+    expires_at = row["expires_at"]
+    if not expires_at:
+        token_created_at = row["token_created_at"]
+        if token_created_at:
+            try:
+                c_dt = datetime.fromisoformat(token_created_at)
+                if c_dt.tzinfo is None:
+                    c_dt = c_dt.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > c_dt + timedelta(days=DEFAULT_TOKEN_TTL_DAYS):
+                    cursor.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+                    conn.commit()
+                    conn.close()
+                    return None
+            except Exception:
+                cursor.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+                conn.commit()
+                conn.close()
+                return None
+    else:
+        try:
+            exp_dt = datetime.fromisoformat(expires_at)
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp_dt:
+                cursor.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+                conn.commit()
+                conn.close()
+                return None
+        except Exception:
+            cursor.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+            conn.commit()
+            conn.close()
+            return None
+
     conn.close()
-    if user:
-        return {"id": user["id"], "email": user["email"], "full_name": user["full_name"]}
-    return None
+    return {"id": row["id"], "email": row["email"], "full_name": row["full_name"]}
+
+def cleanup_expired_tokens() -> int:
+    """Deletes all expired tokens from auth_tokens and returns the number of deleted rows."""
+    now = now_iso()
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+    DELETE FROM auth_tokens 
+    WHERE (expires_at IS NOT NULL AND expires_at < ?)
+       OR (expires_at IS NULL AND datetime(created_at, '+30 days') < datetime('now'))
+    """, (now,))
+    count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return count
 
 def delete_token(token: str):
     conn = get_db()
@@ -255,6 +369,13 @@ def add_chat_message(session_id: str, user_id: str, role: str, content: str, sou
 def delete_user_session(session_id: str, user_id: str) -> bool:
     conn = get_db()
     cursor = conn.cursor()
+    # Verify session ownership first to prevent IDOR message deletion
+    cursor.execute("SELECT id FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
+    session = cursor.fetchone()
+    if not session:
+        conn.close()
+        return False
+
     cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
     cursor.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", (session_id, user_id))
     affected = cursor.rowcount > 0

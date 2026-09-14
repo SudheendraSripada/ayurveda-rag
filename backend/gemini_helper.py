@@ -1,10 +1,25 @@
-import json
 import logging
-from typing import Generator, List, Dict
+from typing import Generator, Optional
 from google import genai
 from google.genai import types
 
 logger = logging.getLogger("gemini-helper")
+
+DEFAULT_CANDIDATE_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite"
+]
+
+def resolve_candidate_models(model_name: Optional[str] = None) -> list[str]:
+    """Return an ordered list of candidate models with the requested model first."""
+    models = list(DEFAULT_CANDIDATE_MODELS)
+    if model_name and model_name.strip():
+        m = model_name.strip()
+        if m in models:
+            models.remove(m)
+        models.insert(0, m)
+    return models
 
 SYSTEM_INSTRUCTION = """You are "Sage Dhanvantari", an expert, compassionate Ayurvedic physician and senior wellness consultant. 
 
@@ -92,7 +107,7 @@ def generate_chat_remedy(
     messages: list[dict], 
     context_passages: list[dict], 
     language: str = "English",
-    model_name: str = "gemini-3.6-flash"
+    model_name: Optional[str] = None
 ) -> str:
     """Generate multi-turn Ayurvedic consultation response in selected language using Gemini with retrieved context."""
     client = genai.Client(api_key=api_key)
@@ -103,11 +118,7 @@ def generate_chat_remedy(
         temperature=0.25
     )
     
-    candidate_models = [
-        "gemini-3.6-flash",
-        "gemini-2.5-flash",
-        "gemini-flash-latest"
-    ]
+    candidate_models = resolve_candidate_models(model_name)
     
     last_err = None
     for model in candidate_models:
@@ -128,7 +139,8 @@ def stream_chat_remedy(
     api_key: str,
     messages: list[dict],
     context_passages: list[dict],
-    language: str = "English"
+    language: str = "English",
+    model_name: Optional[str] = None
 ) -> Generator[str, None, None]:
     """Stream multi-turn Ayurvedic consultation tokens in real-time."""
     client = genai.Client(api_key=api_key)
@@ -139,11 +151,7 @@ def stream_chat_remedy(
         temperature=0.25
     )
     
-    candidate_models = [
-        "gemini-3.6-flash",
-        "gemini-2.5-flash",
-        "gemini-flash-latest"
-    ]
+    candidate_models = resolve_candidate_models(model_name)
     
     for model in candidate_models:
         try:

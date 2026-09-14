@@ -1,16 +1,20 @@
+import sys
 import os
 import json
 import logging
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
+# Ensure backend directory is first on sys.path for CLI execution from repository root
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # Import helper modules
-from pinecone_helper import get_index_stats, search_index, init_index, resolve_pinecone_api_key
+from pinecone_helper import get_index_stats, search_index, resolve_pinecone_api_key
 from gemini_helper import generate_chat_remedy, stream_chat_remedy
 import database
 import rag_precision
@@ -23,13 +27,25 @@ load_dotenv()
 
 app = FastAPI(title="Sushruta Ayurveda RAG - Doctor Chat & Auth API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "").strip()
+if allowed_origins_raw:
+    origins = [o.strip() for o in allowed_origins_raw.split(",") if o.strip()]
+    has_wildcard = "*" in origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=not has_wildcard,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Pydantic models
 class SignUpPayload(BaseModel):
@@ -50,6 +66,7 @@ class ChatPayload(BaseModel):
     session_id: Optional[str] = None
     language: Optional[str] = "English"
     rerank: Optional[bool] = True
+    model_name: Optional[str] = None
 
 class SessionCreatePayload(BaseModel):
     title: Optional[str] = "New Consultation"
@@ -246,7 +263,6 @@ def retrieve_ayurvedic_context(query: str, rerank: bool = True) -> List[Dict[str
 @app.post("/api/chat/stream")
 async def handle_chat_stream(payload: ChatPayload, authorization: Optional[str] = Header(None)):
     """Stream token-by-token consultation in real time with Pinecone scriptures and persistent DB storage."""
-    load_dotenv(override=True)
     gemini_key = os.getenv("GEMINI_API_KEY")
     
     if not gemini_key:
@@ -279,7 +295,8 @@ async def handle_chat_stream(payload: ChatPayload, authorization: Optional[str] 
                 api_key=gemini_key,
                 messages=messages_dict,
                 context_passages=passages,
-                language=selected_language
+                language=selected_language,
+                model_name=payload.model_name
             ):
                 full_response_text += token
                 yield f"data: {json.dumps({'type': 'token', 'chunk': token})}\n\n"
@@ -299,7 +316,6 @@ async def handle_chat_stream(payload: ChatPayload, authorization: Optional[str] 
 
 @app.post("/api/chat")
 def handle_chat(payload: ChatPayload, authorization: Optional[str] = Header(None)):
-    load_dotenv(override=True)
     gemini_key = os.getenv("GEMINI_API_KEY")
     
     if not gemini_key:
@@ -326,7 +342,8 @@ def handle_chat(payload: ChatPayload, authorization: Optional[str] = Header(None
             api_key=gemini_key,
             messages=messages_dict,
             context_passages=passages,
-            language=selected_language
+            language=selected_language,
+            model_name=payload.model_name
         )
         
         if user:
@@ -349,7 +366,6 @@ def handle_chat(payload: ChatPayload, authorization: Optional[str] = Header(None
 # =========================================================
 @app.get("/api/config-status")
 def get_config_status():
-    load_dotenv(override=True)
     pinecone_key = resolve_pinecone_api_key()
     pinecone_configured = bool(pinecone_key)
     gemini_configured = bool(os.getenv("GEMINI_API_KEY"))
@@ -363,7 +379,20 @@ def get_config_status():
     }
 
 @app.post("/api/config")
-def update_config(payload: ConfigPayload):
+def update_config(payload: ConfigPayload, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "").strip() if authorization else None
+    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
+    
+    user = database.get_user_by_token(token) if token else None
+    is_admin = bool(admin_token and token == admin_token)
+    
+    if not user and not is_admin:
+        raise HTTPException(status_code=401, detail="Authentication required to modify configuration.")
+        
+    allow_overwrite = os.getenv("ALLOW_CONFIG_OVERWRITE", "false").strip().lower() in ("true", "1", "yes")
+    if not allow_overwrite:
+        raise HTTPException(status_code=403, detail="Configuration overwrite via API is disabled on this server.")
+        
     load_dotenv(override=True)
     pinecone_key = payload.pinecone_api_key or resolve_pinecone_api_key()
     gemini_key = payload.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
@@ -387,7 +416,6 @@ def update_config(payload: ConfigPayload):
 
 @app.get("/api/index-stats")
 def index_stats():
-    load_dotenv(override=True)
     pinecone_key = resolve_pinecone_api_key()
     index_name = os.getenv("PINECONE_INDEX_NAME", "ayurveda-index")
     
@@ -451,16 +479,32 @@ def get_book_details(book_id: int):
         raise HTTPException(status_code=404, detail=f"Book #{book_id} not found in catalog")
     return {"book": book}
 
+@app.get("/api")
+@app.get("/api/health")
+def api_health():
+    """Health check endpoint for deployment monitoring."""
+    return {
+        "status": "healthy",
+        "service": "Sushruta Ayurveda RAG API",
+        "version": "1.0.0"
+    }
+
 # Static files mounting
 static_candidates = [
     os.path.join(os.path.dirname(__file__), "static"),
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend", "static"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "static"),
     "static"
 ]
 static_dir = next((d for d in static_candidates if os.path.exists(d)), "static")
-os.makedirs(static_dir, exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
-app.mount("/", StaticFiles(directory=static_dir, html=True), name="root_static")
+try:
+    os.makedirs(static_dir, exist_ok=True)
+except OSError:
+    pass
+
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="root_static")
 
 if __name__ == "__main__":
     import uvicorn

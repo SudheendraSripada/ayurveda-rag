@@ -1,8 +1,11 @@
 import os
+import sys
 import unittest
-from pdf_parser import clean_text, chunk_text
-from pinecone_helper import get_pinecone_client
-from gemini_helper import SYSTEM_INSTRUCTION
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from pdf_parser import clean_text, chunk_text  # noqa: E402
+from gemini_helper import SYSTEM_INSTRUCTION  # noqa: E402
 
 class TestAyurvedaRAGPipeline(unittest.TestCase):
     

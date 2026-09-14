@@ -6,7 +6,7 @@ hybrid candidate scoring, and scriptural treatise linking.
 
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 logger = logging.getLogger("rag-precision")
 
