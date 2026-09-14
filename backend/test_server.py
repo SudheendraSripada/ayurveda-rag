@@ -9,6 +9,14 @@ class TestAyurvedaDoctorChatServer(unittest.TestCase):
         self.client = TestClient(app)
         database.init_db()
         
+    def tearDown(self):
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE email LIKE '%@ayurveda.test' OR email LIKE '%@test.com'")
+        cursor.execute("DELETE FROM chat_sessions WHERE title LIKE '%Private Consultation%'")
+        conn.commit()
+        conn.close()
+        
     def test_root_serves_html(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -85,6 +93,57 @@ class TestAyurvedaDoctorChatServer(unittest.TestCase):
         # User 2 tries to fetch messages from User 1's session -> should get empty list / unauthorized
         u2_msgs = self.client.get(f"/api/chat/sessions/{session_id}/messages", headers={"Authorization": f"Bearer {u2_token}"}).json()["messages"]
         self.assertEqual(len(u2_msgs), 0)
+
+    def test_books_catalog_endpoints(self):
+        # 1. Search books list
+        res = self.client.get("/api/books?limit=10")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("books", data)
+        self.assertIn("total", data)
+        self.assertGreater(data["total"], 3400)
+        self.assertEqual(len(data["books"]), 10)
+        
+        # 2. Filter by category
+        res_cat = self.client.get("/api/books?category=ఉప వేదాలు&limit=5")
+        self.assertEqual(res_cat.status_code, 200)
+        data_cat = res_cat.json()
+        for b in data_cat["books"]:
+            self.assertEqual(b["category"], "ఉప వేదాలు")
+            
+        # 3. Filter by query
+        res_q = self.client.get("/api/books?query=Charaka&limit=5")
+        self.assertEqual(res_q.status_code, 200)
+        data_q = res_q.json()
+        self.assertGreater(data_q["total"], 0)
+        
+        # 4. Catalog stats
+        res_stats = self.client.get("/api/books/stats")
+        self.assertEqual(res_stats.status_code, 200)
+        stats = res_stats.json()
+        self.assertGreater(stats["total_books"], 3400)
+        self.assertGreater(stats["ayurveda_books"], 50)
+        self.assertIn("top_categories", stats)
+        
+        # 5. Catalog categories
+        res_cats = self.client.get("/api/books/categories")
+        self.assertEqual(res_cats.status_code, 200)
+        cats = res_cats.json()
+        self.assertIn("categories", cats)
+        self.assertGreater(len(cats["categories"]), 10)
+        
+        # 6. Specific book detail
+        first_book_id = data["books"][0]["id"]
+        res_b = self.client.get(f"/api/books/{first_book_id}")
+        self.assertEqual(res_b.status_code, 200)
+        self.assertEqual(res_b.json()["book"]["id"], first_book_id)
+
+    def test_config_status_endpoint(self):
+        res = self.client.get("/api/config-status")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("pinecone_configured", data)
+        self.assertTrue(data["pinecone_configured"])
 
 if __name__ == "__main__":
     suite = unittest.TestLoader().loadTestsFromTestCase(TestAyurvedaDoctorChatServer)

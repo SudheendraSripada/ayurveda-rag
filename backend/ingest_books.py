@@ -50,26 +50,27 @@ BOOKS_LIST = [
 DOWNLOAD_DIR = "downloaded_books"
 
 def download_pdf(url: str, output_path: str) -> bool:
-    """Download PDF file with User-Agent header."""
+    """Download PDF file with User-Agent header and increased timeout for large volumes."""
     try:
         req = urllib.request.Request(
             url, 
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         )
-        with urllib.request.urlopen(req, timeout=30) as response, open(output_path, "wb") as out_file:
+        with urllib.request.urlopen(req, timeout=120) as response, open(output_path, "wb") as out_file:
             out_file.write(response.read())
         return True
     except Exception as e:
         logger.error(f"Failed to download {url}: {str(e)}")
         return False
 
-def ingest_all_books(limit: int = None):
+def ingest_all_books(limit: int = None, include_catalog: bool = True):
     """Download, parse, and ingest books to Pinecone."""
-    pinecone_key = os.getenv("PINECONE_API_KEY")
+    from pinecone_helper import resolve_pinecone_api_key
+    pinecone_key = resolve_pinecone_api_key()
     index_name = os.getenv("PINECONE_INDEX_NAME", "ayurveda-index")
     
     if not pinecone_key:
-        logger.error("PINECONE_API_KEY is not set in environment or .env file!")
+        logger.error("PINECONE_API_KEY is not set in environment, .env, or MCP config!")
         return
         
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -77,8 +78,16 @@ def ingest_all_books(limit: int = None):
     logger.info(f"Initializing Pinecone index '{index_name}'...")
     init_index(api_key=pinecone_key, index_name=index_name)
     
+    if include_catalog:
+        try:
+            from ingest_catalog import run_ingest_pipeline
+            logger.info("Triggering 3500 books catalog ingestion into Pinecone...")
+            run_ingest_pipeline(limit=limit, namespace="ayurveda", index_name=index_name)
+        except Exception as e:
+            logger.warning(f"Catalog ingestion notice: {e}")
+            
     books_to_process = BOOKS_LIST[:limit] if limit else BOOKS_LIST
-    logger.info(f"Starting ingestion for {len(books_to_process)} Ayurveda reference books...")
+    logger.info(f"Starting treatise text ingestion for {len(books_to_process)} reference books...")
     
     total_books_indexed = 0
     total_chunks_indexed = 0
@@ -99,14 +108,13 @@ def ingest_all_books(limit: int = None):
                 logger.warning(f"Skipping {book_title} due to download failure.")
                 continue
                 
-        # Parse and chunk PDF
         try:
             logger.info(f"Extracting & chunking {filename}...")
             chunks = parse_pdf(file_path, chunk_size=800, overlap=150)
             
-            # Enrich chunks with proper title
             for c in chunks:
                 c["source_book"] = book_title
+                c["is_ayurveda"] = True
                 
             logger.info(f"Generated {len(chunks)} text chunks for '{book_title}'. Upserting to Pinecone...")
             upserted = upsert_chunks(api_key=pinecone_key, index_name=index_name, chunks=chunks, namespace="ayurveda")
@@ -121,5 +129,11 @@ def ingest_all_books(limit: int = None):
 
 if __name__ == "__main__":
     import sys
-    limit_count = int(sys.argv[1]) if len(sys.argv) > 1 else None
-    ingest_all_books(limit=limit_count)
+    limit_count = None
+    catalog_flag = True
+    for arg in sys.argv[1:]:
+        if arg.isdigit():
+            limit_count = int(arg)
+        elif arg == "--no-catalog":
+            catalog_flag = False
+    ingest_all_books(limit=limit_count, include_catalog=catalog_flag)

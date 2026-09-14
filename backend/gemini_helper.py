@@ -48,9 +48,17 @@ def prepare_prompt_contents(messages: list[dict], context_passages: list[dict], 
         context_str = "=== SCRIPTURAL PASSAGES FROM AYURVEDIC BOOKS ===\n\n"
         for i, p in enumerate(context_passages):
             idx = i + 1
-            context_str += f"[{idx}] Source Book: {p.get('source_book', 'Ayurvedic Scripture')}\n"
-            context_str += f"    Page Number: {p.get('page_number', 'N/A')}\n"
-            context_str += f"    Excerpt: {p.get('text', '')}\n\n"
+            source_book = p.get('source_book', 'Ayurvedic Scripture')
+            page_no = p.get('page_number', 'N/A')
+            category = p.get('category', 'General')
+            download_url = p.get('download_url', '')
+            excerpt = p.get('text', '').strip()
+            
+            context_str += f"[{idx}] Source Treatise: {source_book}\n"
+            context_str += f"    Category: {category} | Reference Page: {page_no}\n"
+            if download_url:
+                context_str += f"    Digital Volume Archive: {download_url}\n"
+            context_str += f"    Scriptural Text & Remedy Excerpt:\n    {excerpt}\n\n"
         context_str += "=================================================\n\n"
     else:
         context_str = "=== SCRIPTURAL PASSAGES FROM AYURVEDIC BOOKS ===\nNo direct passages found in the uploaded index.\n\n"

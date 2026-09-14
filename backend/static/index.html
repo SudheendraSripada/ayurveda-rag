@@ -35,7 +35,7 @@
                 <div class="landing-nav-links">
                     <a href="#how-it-works" class="nav-link" data-i18n="nav_how_it_works">How It Works</a>
                     <a href="#pillars" class="nav-link" data-i18n="nav_pillars">Clinical Pillars</a>
-                    <a href="#scriptures" class="nav-link" data-i18n="nav_scriptures">31 Scriptures</a>
+                    <a href="#scriptures" class="nav-link" data-i18n="nav_scriptures">3500+ Library</a>
                     <a href="#faq" class="nav-link" data-i18n="nav_faq">FAQ</a>
                 </div>
 
@@ -214,13 +214,35 @@
             </div>
         </section>
 
-        <!-- 31 Scriptures Showcase Section -->
+        <!-- 3500+ FreeGurukul Digital Library Section -->
         <section class="landing-section" id="scriptures">
-            <div class="section-badge" data-i18n="scriptures_badge">Knowledge Base</div>
-            <h2 class="section-title" data-i18n="scriptures_title">31 Digitized Classical Treatises</h2>
-            <p class="section-sub" data-i18n="scriptures_sub">Comprehensive compendia spanning centuries of traditional medical wisdom.</p>
+            <div class="section-badge" data-i18n="scriptures_badge">Digital Library</div>
+            <h2 class="section-title">3,500+ FreeGurukul Telugu Books & Classical Treatises</h2>
+            <p class="section-sub">Comprehensive digital collection indexed in Pinecone for semantic precision, including Upavedas (Ayurveda & Health), Charaka, Sushruta, Ashtanga, Vanamulika, and classical scriptures.</p>
 
-            <div class="scriptures-chips-grid">
+            <!-- Catalog Search & Filter Controls -->
+            <div class="catalog-filter-bar" style="max-width: 900px; margin: 1.5rem auto; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <div class="search-input-wrapper" style="flex: 1; min-width: 260px; position: relative;">
+                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    <input type="text" id="catalog-search-input" placeholder="Search 3500+ books (e.g. చరక, ఆయుర్వేదం, diabetes, digestion)..." style="width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-light); font-size: 0.9rem;">
+                </div>
+                <select id="catalog-category-select" style="padding: 0.75rem 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-light); font-size: 0.9rem;">
+                    <option value="">All Categories</option>
+                    <option value="ఉప వేదాలు">ఉప వేదాలు (Ayurveda & Health)</option>
+                    <option value="భగవద్గీత">భగవద్గీత</option>
+                    <option value="వేదములు">వేదములు</option>
+                    <option value="ఉపనిషత్తులు">ఉపనిషత్తులు</option>
+                    <option value="రామాయణం">రామాయణం</option>
+                    <option value="మహాభారతం">మహాభారతం</option>
+                    <option value="పురాణములు">పురాణములు</option>
+                </select>
+                <button id="catalog-ayurveda-toggle" class="btn-hero-secondary" style="padding: 0.75rem 1.25rem; font-size: 0.85rem;">
+                    <i class="fa-solid fa-leaf"></i> Ayurveda Only
+                </button>
+            </div>
+
+            <!-- Interactive Catalog Results Grid -->
+            <div id="catalog-results-grid" class="scriptures-chips-grid" style="max-width: 1100px; margin: 1.5rem auto;">
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ వనమూలికా వేదం</div>
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ ఆహార వేదం</div>
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం - స్వదేశీ సౌందర్య వేదం</div>
@@ -230,6 +252,10 @@
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> ప్రకృతి గృహ వైద్యం (Nature Home Remedies)</div>
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> గృహౌషధ వనము (Medicinal Herbs Garden)</div>
                 <div class="scripture-chip"><i class="fa-solid fa-scroll"></i> అందరికి ఆయుర్వేదం వార్షిక సంచికలు (2008-2015)</div>
+            </div>
+            
+            <div id="catalog-status-bar" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 1rem;">
+                Showing top featured treatises from the 3,500 FreeGurukul collection.
             </div>
         </section>
 

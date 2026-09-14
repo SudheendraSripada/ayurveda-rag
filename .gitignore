@@ -11,6 +11,8 @@ __pycache__/
 # Uploaded temporary files
 temp/
 *.pdf
+downloaded_books/
+test_*.db
 
 # Local runtime data
 indexed_docs.json

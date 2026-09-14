@@ -4,7 +4,10 @@ import secrets
 import json
 import os
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 DB_PATH = os.getenv("AYURVEDA_DB_PATH", os.path.join(os.path.dirname(__file__), "ayurveda.db"))
 
@@ -64,6 +67,27 @@ def init_db():
     );
     """)
     
+    # Books table for 3500 catalog
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS books (
+        id INTEGER PRIMARY KEY,
+        book_id INTEGER NOT NULL,
+        category TEXT NOT NULL,
+        title_telugu TEXT NOT NULL,
+        title_english TEXT NOT NULL,
+        pages INTEGER,
+        size_mb INTEGER,
+        download_url TEXT,
+        is_ayurveda BOOLEAN DEFAULT 0,
+        topics TEXT,
+        source_pdf_page INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_cat ON books(category);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_ayur ON books(is_ayurveda);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_books_en ON books(title_english);")
+    
     conn.commit()
     conn.close()
 
@@ -87,7 +111,7 @@ def create_user(email: str, password: str, full_name: str) -> Dict[str, Any]:
     
     pwd_hash, salt = hash_password(password)
     user_id = "usr_" + secrets.token_hex(8)
-    now = datetime.utcnow().isoformat()
+    now = now_iso()
     
     conn = get_db()
     cursor = conn.cursor()
@@ -120,7 +144,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         raise ValueError("Invalid email or password")
     
     token = "tok_" + secrets.token_hex(24)
-    now = datetime.utcnow().isoformat()
+    now = now_iso()
     cursor.execute("INSERT INTO auth_tokens (token, user_id, created_at) VALUES (?, ?, ?)", (token, user["id"], now))
     conn.commit()
     conn.close()
@@ -164,7 +188,7 @@ def get_user_sessions(user_id: str) -> List[Dict[str, Any]]:
 def create_chat_session(user_id: str, title: str = "New Consultation", session_id: Optional[str] = None) -> Dict[str, Any]:
     if not session_id:
         session_id = "ses_" + secrets.token_hex(8)
-    now = datetime.utcnow().isoformat()
+    now = now_iso()
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
@@ -206,7 +230,7 @@ def add_chat_message(session_id: str, user_id: str, role: str, content: str, sou
     # Verify session or create if not exists
     cursor.execute("SELECT id, user_id, title FROM chat_sessions WHERE id = ?", (session_id,))
     session = cursor.fetchone()
-    now = datetime.utcnow().isoformat()
+    now = now_iso()
     
     if not session:
         title = content[:28] + "..." if len(content) > 30 else content
@@ -238,5 +262,146 @@ def delete_user_session(session_id: str, user_id: str) -> bool:
     conn.close()
     return affected
 
+# =========================================================
+# Books Catalog Queries (3500 FreeGurukul Books)
+# =========================================================
+def search_books(
+    query: Optional[str] = None, 
+    category: Optional[str] = None, 
+    is_ayurveda: Optional[bool] = None, 
+    limit: int = 20, 
+    offset: int = 0
+) -> Dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    where_clauses = []
+    params: List[Any] = []
+    
+    if query and query.strip():
+        q = f"%{query.strip()}%"
+        where_clauses.append("(title_telugu LIKE ? OR title_english LIKE ? OR topics LIKE ?)")
+        params.extend([q, q, q])
+        
+    if category and category.strip() and category.strip() != "All":
+        where_clauses.append("category = ?")
+        params.append(category.strip())
+        
+    if is_ayurveda is not None:
+        where_clauses.append("is_ayurveda = ?")
+        params.append(1 if is_ayurveda else 0)
+        
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    
+    count_query = f"SELECT COUNT(*) FROM books {where_sql}"
+    cursor.execute(count_query, params)
+    total = cursor.fetchone()[0]
+    
+    fetch_query = f"""
+    SELECT id, book_id, category, title_telugu, title_english, pages, size_mb, download_url, is_ayurveda, topics, source_pdf_page
+    FROM books {where_sql}
+    ORDER BY is_ayurveda DESC, id ASC
+    LIMIT ? OFFSET ?
+    """
+    cursor.execute(fetch_query, params + [limit, offset])
+    rows = cursor.fetchall()
+    
+    books = []
+    for r in rows:
+        topics = json.loads(r["topics"]) if r["topics"] else []
+        books.append({
+            "id": r["id"],
+            "book_id": r["book_id"],
+            "category": r["category"],
+            "title_telugu": r["title_telugu"],
+            "title_english": r["title_english"],
+            "pages": r["pages"],
+            "size_mb": r["size_mb"],
+            "download_url": r["download_url"],
+            "is_ayurveda": bool(r["is_ayurveda"]),
+            "topics": topics,
+            "source_pdf_page": r["source_pdf_page"]
+        })
+        
+    conn.close()
+    return {
+        "books": books,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+def get_book_by_id(book_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT id, book_id, category, title_telugu, title_english, pages, size_mb, download_url, is_ayurveda, topics, source_pdf_page
+    FROM books WHERE book_id = ? OR id = ? LIMIT 1
+    """, (book_id, book_id))
+    r = cursor.fetchone()
+    conn.close()
+    if not r:
+        return None
+    topics = json.loads(r["topics"]) if r["topics"] else []
+    return {
+        "id": r["id"],
+        "book_id": r["book_id"],
+        "category": r["category"],
+        "title_telugu": r["title_telugu"],
+        "title_english": r["title_english"],
+        "pages": r["pages"],
+        "size_mb": r["size_mb"],
+        "download_url": r["download_url"],
+        "is_ayurveda": bool(r["is_ayurveda"]),
+        "topics": topics,
+        "source_pdf_page": r["source_pdf_page"]
+    }
+
+def get_catalog_stats() -> Dict[str, Any]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), SUM(CASE WHEN is_ayurveda = 1 THEN 1 ELSE 0 END), COUNT(DISTINCT category), SUM(pages) FROM books")
+    row = cursor.fetchone()
+    total_books = row[0] or 0
+    total_ayurveda = row[1] or 0
+    total_categories = row[2] or 0
+    total_pages = row[3] or 0
+    
+    cursor.execute("SELECT category, COUNT(*) as cnt FROM books GROUP BY category ORDER BY cnt DESC LIMIT 15")
+    top_categories = [{"category": r[0], "count": r[1]} for r in cursor.fetchall()]
+    
+    conn.close()
+    return {
+        "total_books": total_books,
+        "ayurveda_books": total_ayurveda,
+        "total_categories": total_categories,
+        "total_pages": total_pages,
+        "top_categories": top_categories
+    }
+
+def get_categories() -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT category, COUNT(*) as cnt FROM books GROUP BY category ORDER BY cnt DESC")
+    cats = [{"category": r[0], "count": r[1]} for r in cursor.fetchall()]
+    conn.close()
+    return cats
+
+def ensure_catalog_populated():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM books")
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    if count == 0:
+        catalog_path = os.path.join(os.path.dirname(__file__), "data", "books_catalog.json")
+        if os.path.exists(catalog_path):
+            with open(catalog_path, "r", encoding="utf-8") as f:
+                books = json.load(f)
+            from catalog_parser import populate_database_catalog
+            populate_database_catalog(books, DB_PATH)
+
 # Initialize database tables on import
 init_db()
+ensure_catalog_populated()

@@ -1331,6 +1331,23 @@ function showCitationPopover(source, anchorEl) {
     popoverPage.textContent = `Page ${source.page_number || 'N/A'}`;
     popoverExcerpt.textContent = `"${(source.text || '').trim()}"`;
 
+    let downloadLink = citationPopover.querySelector(".popover-download-link");
+    if (!downloadLink) {
+        downloadLink = document.createElement("a");
+        downloadLink.className = "popover-download-link";
+        downloadLink.target = "_blank";
+        downloadLink.rel = "noopener noreferrer";
+        downloadLink.style.cssText = "display: block; margin-top: 0.6rem; font-size: 0.8rem; color: #10b981; font-weight: 600; text-decoration: none;";
+        citationPopover.appendChild(downloadLink);
+    }
+    if (source.download_url) {
+        downloadLink.href = source.download_url;
+        downloadLink.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Read / Download PDF (FreeGurukul Archive)';
+        downloadLink.style.display = "block";
+    } else {
+        downloadLink.style.display = "none";
+    }
+
     const rect = anchorEl.getBoundingClientRect();
     citationPopover.style.left = Math.min(rect.left, window.innerWidth - 380) + "px";
     citationPopover.style.top = (rect.bottom + 8) + "px";
@@ -1384,3 +1401,101 @@ function escapeHTML(str) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// =========================================================
+// FreeGurukul 3500 Books Dynamic Browser
+// =========================================================
+let catalogAyurvedaOnly = false;
+let catalogDebounceTimer = null;
+
+function initCatalogExplorer() {
+    const searchInput = document.getElementById("catalog-search-input");
+    const categorySelect = document.getElementById("catalog-category-select");
+    const ayurToggle = document.getElementById("catalog-ayurveda-toggle");
+    const resultsGrid = document.getElementById("catalog-results-grid");
+    const statusBar = document.getElementById("catalog-status-bar");
+
+    if (!searchInput || !resultsGrid) return;
+
+    fetch("/api/books/categories")
+        .then(r => r.json())
+        .then(data => {
+            if (data.categories && categorySelect) {
+                categorySelect.innerHTML = '<option value="">All Categories (3,500+ Books)</option>';
+                data.categories.forEach(cat => {
+                    const opt = document.createElement("option");
+                    opt.value = cat.category;
+                    opt.textContent = `${cat.category} (${cat.count})`;
+                    categorySelect.appendChild(opt);
+                });
+            }
+        })
+        .catch(err => console.log("Category fetch notice:", err));
+
+    async function loadCatalogBooks() {
+        const query = searchInput.value.trim();
+        const category = categorySelect ? categorySelect.value : "";
+        const url = `/api/books?query=${encodeURIComponent(query)}&category=${encodeURIComponent(category)}${catalogAyurvedaOnly ? '&is_ayurveda=true' : ''}&limit=18`;
+
+        if (statusBar) statusBar.textContent = "Searching 3,500 books database...";
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            const books = data.books || [];
+
+            if (statusBar) {
+                statusBar.textContent = `Found ${data.total || books.length} books in catalog ${catalogAyurvedaOnly ? '(Ayurveda filtered)' : ''}. Showing top ${books.length}.`;
+            }
+
+            if (books.length === 0) {
+                resultsGrid.innerHTML = '<div style="color: var(--text-muted); padding: 1.5rem; text-align: center; width: 100%;">No books matched your filter criteria. Try searching a different keyword.</div>';
+                return;
+            }
+
+            resultsGrid.innerHTML = books.map(b => {
+                const ayurBadge = b.is_ayurveda ? '<span style="font-size: 0.68rem; background: rgba(16,185,129,0.15); color: #10b981; padding: 2px 6px; border-radius: 4px; margin-left: 6px;"><i class="fa-solid fa-leaf"></i> Ayurveda</span>' : '';
+                const downloadBtn = b.download_url ? `<a href="${escapeHTML(b.download_url)}" target="_blank" rel="noopener noreferrer" style="color: #d4af37; margin-left: auto; text-decoration: none; font-size: 0.78rem;" title="Download FreeGurukul PDF"><i class="fa-solid fa-download"></i> PDF</a>` : '';
+                return `
+                    <div class="scripture-chip" style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; text-align: left;">
+                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <i class="fa-solid fa-book-bookmark" style="color: #10b981; margin-right: 4px;"></i>
+                            <strong style="color: var(--text-light); font-size: 0.85rem;">${escapeHTML(b.title_telugu)}</strong>
+                            ${ayurBadge}
+                            <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHTML(b.title_english || b.category)} &bull; ${b.pages} pgs (${b.size_mb} MB)</div>
+                        </div>
+                        ${downloadBtn}
+                    </div>
+                `;
+            }).join("");
+        } catch (err) {
+            console.error("Catalog load error:", err);
+            if (statusBar) statusBar.textContent = "Unable to fetch books from API.";
+        }
+    }
+
+    searchInput.addEventListener("input", () => {
+        clearTimeout(catalogDebounceTimer);
+        catalogDebounceTimer = setTimeout(loadCatalogBooks, 300);
+    });
+
+    if (categorySelect) {
+        categorySelect.addEventListener("change", loadCatalogBooks);
+    }
+
+    if (ayurToggle) {
+        ayurToggle.addEventListener("click", () => {
+            catalogAyurvedaOnly = !catalogAyurvedaOnly;
+            ayurToggle.classList.toggle("active", catalogAyurvedaOnly);
+            ayurToggle.style.borderColor = catalogAyurvedaOnly ? "var(--accent-emerald)" : "";
+            ayurToggle.style.color = catalogAyurvedaOnly ? "var(--accent-emerald)" : "";
+            loadCatalogBooks();
+        });
+    }
+
+    loadCatalogBooks();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    initCatalogExplorer();
+});
